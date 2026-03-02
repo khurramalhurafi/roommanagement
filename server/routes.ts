@@ -4,10 +4,37 @@ import session from "express-session";
 import ConnectPgSimple from "connect-pg-simple";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
+import path from "path";
+import fs from "fs";
 import QRCode from "qrcode";
+import multer from "multer";
 import { z } from "zod";
 import { insertEmployeeSchema, insertRoomSchema, insertUserSchema } from "@shared/schema";
 import { storage } from "./storage";
+
+const uploadsDir = path.join(process.cwd(), "client", "public", "uploads");
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, uploadsDir),
+    filename: (_req, file, cb) => {
+      const uniqueName = `${Date.now()}-${crypto.randomBytes(6).toString("hex")}${path.extname(file.originalname)}`;
+      cb(null, uniqueName);
+    },
+  }),
+  limits: { fileSize: 2 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = ["image/jpeg", "image/png", "image/jpg"];
+    if (allowed.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only JPG and PNG images are allowed"));
+    }
+  },
+});
 
 const PgSession = ConnectPgSimple(session);
 
@@ -39,6 +66,9 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  const express = (await import("express")).default;
+  app.use("/uploads", express.static(uploadsDir));
+
   app.use(
     session({
       store: new PgSession({
@@ -157,6 +187,51 @@ export async function registerRoutes(
       const employee = await storage.updateEmployee(id, req.body);
       if (!employee) return res.status(404).json({ message: "Employee not found" });
       res.json(employee);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/employees/:id/upload-photo", requireAuth, upload.single("photo"), async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const employee = await storage.getEmployee(id);
+      if (!employee) return res.status(404).json({ message: "Employee not found" });
+
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      if (employee.profileImage) {
+        const oldPath = path.join(uploadsDir, path.basename(employee.profileImage));
+        if (fs.existsSync(oldPath)) {
+          fs.unlinkSync(oldPath);
+        }
+      }
+
+      const profileImage = `/uploads/${req.file.filename}`;
+      const updated = await storage.updateEmployee(id, { profileImage });
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/employees/:id/photo", requireAuth, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const employee = await storage.getEmployee(id);
+      if (!employee) return res.status(404).json({ message: "Employee not found" });
+
+      if (employee.profileImage) {
+        const oldPath = path.join(uploadsDir, path.basename(employee.profileImage));
+        if (fs.existsSync(oldPath)) {
+          fs.unlinkSync(oldPath);
+        }
+      }
+
+      const updated = await storage.updateEmployee(id, { profileImage: null });
+      res.json(updated);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }

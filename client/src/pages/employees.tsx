@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -46,6 +46,10 @@ import {
   Search,
   Users,
   ArrowRightLeft,
+  Camera,
+  X,
+  Eye,
+  Upload,
 } from "lucide-react";
 import type { Employee, Room } from "@shared/schema";
 
@@ -67,7 +71,12 @@ export default function EmployeesPage() {
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [showTransfer, setShowTransfer] = useState(false);
   const [transferEmployee, setTransferEmployee] = useState<Employee | null>(null);
+  const [showDetails, setShowDetails] = useState(false);
+  const [detailEmployee, setDetailEmployee] = useState<Employee | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const detailFileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   const { data: employees = [], isLoading } = useQuery<Employee[]>({
@@ -167,6 +176,53 @@ export default function EmployeesPage() {
     },
   });
 
+  const handlePhotoUpload = async (employeeId: number, file: File) => {
+    setUploadingPhoto(true);
+    try {
+      const formData = new FormData();
+      formData.append("photo", file);
+      const res = await fetch(`/api/employees/${employeeId}/upload-photo`, {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Upload failed");
+      }
+      const updated = await res.json();
+      queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
+      if (detailEmployee?.id === employeeId) {
+        setDetailEmployee(updated);
+      }
+      if (editingEmployee?.id === employeeId) {
+        setEditingEmployee(updated);
+      }
+      toast({ title: "Profile picture uploaded successfully" });
+    } catch (error: any) {
+      toast({ title: "Upload failed", description: error.message, variant: "destructive" });
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  const handleRemovePhoto = async (employeeId: number) => {
+    try {
+      const res = await apiRequest("DELETE", `/api/employees/${employeeId}/photo`);
+      const updated = await res.json();
+      queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
+      if (detailEmployee?.id === employeeId) {
+        setDetailEmployee(updated);
+      }
+      if (editingEmployee?.id === employeeId) {
+        setEditingEmployee(updated);
+      }
+      toast({ title: "Profile picture removed" });
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  };
+
   const openEdit = (employee: Employee) => {
     setEditingEmployee(employee);
     form.reset({
@@ -217,6 +273,11 @@ export default function EmployeesPage() {
     }
   };
 
+  const openDetails = (employee: Employee) => {
+    setDetailEmployee(employee);
+    setShowDetails(true);
+  };
+
   const filteredEmployees = employees.filter(
     (e) =>
       e.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -232,6 +293,9 @@ export default function EmployeesPage() {
   };
 
   const availableRooms = rooms.filter((r) => r.status === "available" || r.status === "occupied");
+
+  const getInitials = (name: string) =>
+    name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
 
   return (
     <div className="p-6 space-y-6 overflow-y-auto h-full">
@@ -298,10 +362,16 @@ export default function EmployeesPage() {
                         <Avatar className="h-9 w-9">
                           <AvatarImage src={employee.profileImage || undefined} />
                           <AvatarFallback className="text-xs">
-                            {employee.name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
+                            {getInitials(employee.name)}
                           </AvatarFallback>
                         </Avatar>
-                        <span className="font-medium">{employee.name}</span>
+                        <button
+                          className="font-medium text-left hover:underline cursor-pointer"
+                          onClick={() => openDetails(employee)}
+                          data-testid={`link-employee-name-${employee.id}`}
+                        >
+                          {employee.name}
+                        </button>
                       </div>
                     </TableCell>
                     <TableCell className="text-muted-foreground">{employee.employeeIdNo}</TableCell>
@@ -323,6 +393,14 @@ export default function EmployeesPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => openDetails(employee)}
+                          data-testid={`button-view-employee-${employee.id}`}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
                         <Button
                           size="icon"
                           variant="ghost"
@@ -361,6 +439,125 @@ export default function EmployeesPage() {
         </Card>
       )}
 
+      <Dialog open={showDetails} onOpenChange={setShowDetails}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Employee Details</DialogTitle>
+          </DialogHeader>
+          {detailEmployee && (
+            <div className="space-y-5">
+              <div className="flex flex-col items-center gap-3">
+                <div className="relative group">
+                  <Avatar className="h-24 w-24">
+                    <AvatarImage src={detailEmployee.profileImage || undefined} />
+                    <AvatarFallback className="text-2xl">
+                      {getInitials(detailEmployee.name)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex gap-1 mt-2 justify-center">
+                    <input
+                      ref={detailFileInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handlePhotoUpload(detailEmployee.id, file);
+                        e.target.value = "";
+                      }}
+                      data-testid="input-detail-photo-upload"
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => detailFileInputRef.current?.click()}
+                      disabled={uploadingPhoto}
+                      data-testid="button-detail-upload-photo"
+                    >
+                      <Camera className="h-3.5 w-3.5 mr-1" />
+                      {uploadingPhoto ? "Uploading..." : detailEmployee.profileImage ? "Change Photo" : "Upload Photo"}
+                    </Button>
+                    {detailEmployee.profileImage && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleRemovePhoto(detailEmployee.id)}
+                        data-testid="button-detail-remove-photo"
+                      >
+                        <X className="h-3.5 w-3.5 mr-1" />
+                        Remove
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                <div className="text-center">
+                  <h3 className="text-lg font-semibold" data-testid="text-detail-name">
+                    {detailEmployee.name}
+                  </h3>
+                  <p className="text-sm text-muted-foreground">{detailEmployee.employeeIdNo}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 rounded-md bg-muted/50">
+                  <p className="text-xs text-muted-foreground">Department</p>
+                  <p className="text-sm font-medium">{detailEmployee.department}</p>
+                </div>
+                <div className="p-3 rounded-md bg-muted/50">
+                  <p className="text-xs text-muted-foreground">Company</p>
+                  <p className="text-sm font-medium">{detailEmployee.company}</p>
+                </div>
+                <div className="p-3 rounded-md bg-muted/50">
+                  <p className="text-xs text-muted-foreground">Iqama Number</p>
+                  <p className="text-sm font-medium">{detailEmployee.iqama}</p>
+                </div>
+                <div className="p-3 rounded-md bg-muted/50">
+                  <p className="text-xs text-muted-foreground">Mobile</p>
+                  <p className="text-sm font-medium">{detailEmployee.mobile}</p>
+                </div>
+                <div className="p-3 rounded-md bg-muted/50">
+                  <p className="text-xs text-muted-foreground">Room</p>
+                  <p className="text-sm font-medium">{getRoomLabel(detailEmployee.roomId)}</p>
+                </div>
+                <div className="p-3 rounded-md bg-muted/50">
+                  <p className="text-xs text-muted-foreground">Status</p>
+                  <Badge variant={detailEmployee.status === "active" ? "default" : "secondary"}>
+                    {detailEmployee.status}
+                  </Badge>
+                </div>
+              </div>
+
+              <div className="flex gap-2 justify-end pt-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setShowDetails(false);
+                    openEdit(detailEmployee);
+                  }}
+                  data-testid="button-detail-edit"
+                >
+                  <Pencil className="h-3.5 w-3.5 mr-1" />
+                  Edit
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setShowDetails(false);
+                    openTransfer(detailEmployee);
+                  }}
+                  data-testid="button-detail-transfer"
+                >
+                  <ArrowRightLeft className="h-3.5 w-3.5 mr-1" />
+                  Transfer
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={showForm} onOpenChange={setShowForm}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -368,6 +565,63 @@ export default function EmployeesPage() {
               {editingEmployee ? "Edit Employee" : "Add New Employee"}
             </DialogTitle>
           </DialogHeader>
+
+          {editingEmployee && (
+            <div className="flex items-center gap-4 p-4 rounded-md bg-muted/50">
+              <div className="relative">
+                <Avatar className="h-16 w-16">
+                  <AvatarImage src={editingEmployee.profileImage || undefined} />
+                  <AvatarFallback className="text-lg">
+                    {getInitials(editingEmployee.name)}
+                  </AvatarFallback>
+                </Avatar>
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium mb-2">Profile Picture</p>
+                <div className="flex gap-2 flex-wrap">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file && editingEmployee) {
+                        handlePhotoUpload(editingEmployee.id, file);
+                      }
+                      e.target.value = "";
+                    }}
+                    data-testid="input-photo-upload"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingPhoto}
+                    data-testid="button-upload-photo"
+                  >
+                    <Upload className="h-3.5 w-3.5 mr-1" />
+                    {uploadingPhoto ? "Uploading..." : "Upload Photo"}
+                  </Button>
+                  {editingEmployee.profileImage && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleRemovePhoto(editingEmployee.id)}
+                      data-testid="button-remove-photo"
+                    >
+                      <X className="h-3.5 w-3.5 mr-1" />
+                      Remove
+                    </Button>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">JPG or PNG, max 2MB</p>
+              </div>
+            </div>
+          )}
+
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
