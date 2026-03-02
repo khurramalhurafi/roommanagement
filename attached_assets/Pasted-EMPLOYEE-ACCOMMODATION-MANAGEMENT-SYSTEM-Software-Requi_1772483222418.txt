@@ -1,0 +1,80 @@
+EMPLOYEE ACCOMMODATION MANAGEMENT SYSTEM
+Software Requirement Specification (SRS)
+Version: 1.0
+Date: 02 March 2026
+Prepared For: HR & Administration Department
+ 
+1. INTRODUCTION
+•	Purpose: To manage company employee accommodation using QR-based room identification system.
+•	System Type: Web-Based Application.
+•	Access: Desktop and Mobile Browser.
+
+2. SYSTEM ARCHITECTURE
+•	Frontend: React.js / Next.js with Tailwind CSS.
+•	Backend: Laravel (Recommended) or Node.js + Express.
+•	Database: MySQL.
+•	Hosting: VPS or Secure Cloud Hosting with SSL.
+
+3. USER ROLES & PERMISSIONS
+•	Super Admin: Full access including user management and system configuration.
+•	HR User: Can manage employees and rooms but cannot manage system users.
+•	Role-Based Access Control (RBAC) must be implemented in backend.
+
+4. DASHBOARD MODULE
+•	Clickable summary cards: Total Employees, Total Rooms, Occupied Rooms, Available Rooms.
+•	Clicking cards opens respective filtered pages.
+•	Display occupancy statistics and recent transfers.
+
+5. EMPLOYEE MANAGEMENT MODULE
+•	Add/Edit/Delete Employees.
+•	Fields: Employee ID, Name, Iqama Number, Mobile, Department, Company Name, Status.
+•	Upload Profile Picture (jpg/png, max 2MB, resized to 300x300).
+•	One employee can be assigned to only one room at a time.
+•	Employee transfer must update room automatically.
+
+6. ROOM MANAGEMENT MODULE
+•	Add/Edit/Delete Rooms.
+•	Fields: Room Number, Building, Floor, Capacity, Status.
+•	Auto-generate QR Code after room creation.
+•	Room details page must display employees assigned to the room.
+•	Capacity control must block over-assignment.
+
+7. QR CODE SYSTEM
+•	Unique secure hash-based URL for each room.
+•	Public read-only page without login.
+•	Display room details and employee cards.
+•	Employee card shows Picture, Name, Employee ID, Company Name, Department.
+•	Iqama and mobile number must NOT be visible on QR page.
+
+8. USER MANAGEMENT MODULE
+•	Admin can add/edit/delete system users.
+•	Fields: Full Name, Email (unique), Password (hashed), Role, Status.
+•	Secure login with password encryption.
+•	Session timeout and logout functionality required.
+
+9. DATABASE STRUCTURE
+•	Users Table: id, name, email, password, role, status, timestamps.
+•	Employees Table: id, employee_id_no, name, iqama, mobile, department, company, profile_image, room_id.
+•	Rooms Table: id, room_number, building, floor, capacity, status, qr_hash.
+•	Room Transfer Logs Table for tracking transfers.
+
+10. SECURITY REQUIREMENTS
+•	Password hashing using bcrypt.
+•	Backend authorization checks.
+•	Protection against SQL injection and brute force attacks.
+•	SSL certificate required for hosting.
+•	Daily database backup recommended.
+
+11. NON-FUNCTIONAL REQUIREMENTS
+•	Responsive design (mobile friendly).
+•	Fast loading time (under 3 seconds).
+•	Multi-user support.
+•	Image optimization for performance.
+
+12. FUTURE EXPANSION (PHASE 2)
+•	Attendance integration.
+•	Maintenance module.
+•	Visitor tracking system.
+•	Mobile application.
+•	SMS/Notification system.
+
