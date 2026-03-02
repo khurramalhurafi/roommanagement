@@ -1,0 +1,110 @@
+Back to Apps
+accommodation
+First deploy failed
+first-project
+AMS3
+Add components
+Actions
+
+Khurram Hussnain's 
+deployment
+ failed during deploy phase at 02:37:38 AM
+
+Go to Build Logs
+Overview
+Insights
+Activity
+Runtime Logs
+Console
+Networking
+Settings
+Back to activity
+Deployment
+Failed
+Build Error: Non-Zero Exit
+roommanagement build job failed because it returned a non-zero exit code. Review the logs for details. Attempt to correct the problem and redeploy your application. To help troubleshoot code-specific issues, build your app locally using doctl. 
+Summary
+Build failed creating new app
+Executed by
+Khurram Hussnain
+Khurram Hussnain
+Start time
+Today at 2:36:32 AM
+Build time
+1m 2s total • 0m 21s billable
+We took a deep dive into your logs and found a few things to check out.
+Here's what might be causing the failure and what you can do to fix it. After giving these a try, redeploy your app.
+Beta
+
+Build failed: missing 'tsx' command
+Were these tips helpful?
+
+
+Analyze Again
+Logs
+
+roommanagement
+Web Service
+Build logs
+Deploy logs
+Search logs...
+Time
+Message
+Mar 02 23:37:18
+ │        
+Mar 02 23:37:18
+ │        63 packages are looking for funding
+Mar 02 23:37:18
+ │          run `npm fund` for details
+Mar 02 23:37:18
+ │        
+Mar 02 23:37:18
+ │        3 vulnerabilities (1 low, 1 moderate, 1 high)
+Mar 02 23:37:18
+ │        
+Mar 02 23:37:18
+ │        To address all issues, run:
+Mar 02 23:37:18
+ │          npm audit fix
+Mar 02 23:37:18
+ │        
+Mar 02 23:37:18
+ │        Run `npm audit` for details.
+Mar 02 23:37:18
+ │        npm notice
+Mar 02 23:37:18
+ │        npm notice New major version of npm available! 10.9.4 -> 11.11.0
+Mar 02 23:37:18
+ │        npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.11.0
+Mar 02 23:37:18
+ │        npm notice To update run: npm install -g npm@11.11.0
+Mar 02 23:37:18
+ │        npm notice
+Mar 02 23:37:18
+ │        
+Mar 02 23:37:18
+ │ -----> Build succeeded!
+Mar 02 23:37:19
+ │ Running custom build command: npm run build
+Mar 02 23:37:19
+ │ 
+Mar 02 23:37:19
+ │ > rest-express@1.0.0 build
+Mar 02 23:37:19
+ │ > tsx script/build.ts
+Mar 02 23:37:19
+ │ 
+Mar 02 23:37:19
+ │ sh: 1: tsx: not found
+Mar 02 23:37:19
+ │ building: exit status 127
+Mar 02 23:37:19
+ │ Timer: Builder ran for 19.167031055s and ended at 2026-03-02T23:37:19Z
+Mar 02 23:37:19
+ │ ERROR: failed to build: exit status 1
+Mar 02 23:37:19
+ │ 
+Mar 02 23:37:19
+ │ 
+Mar 02 23:37:19
+ │  ✘ build failed
