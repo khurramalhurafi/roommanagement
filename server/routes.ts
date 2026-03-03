@@ -378,9 +378,9 @@ export async function registerRoutes(
       const room = await storage.getRoom(id);
       if (!room) return res.status(404).json({ message: "Room not found" });
 
-      const protocol = req.headers["x-forwarded-proto"] || "http";
+      const protocol = req.headers["x-forwarded-proto"] || req.protocol || "http";
       const host = req.headers.host;
-      const url = `${protocol}://${host}/room/${room.qrHash}`;
+      const url = `${protocol === "https" || process.env.NODE_ENV === "production" ? "https" : protocol}://${host}/room/${room.qrHash}`;
       const qrDataUrl = await QRCode.toDataURL(url, { width: 300, margin: 2 });
       res.json({ qrDataUrl });
     } catch (error: any) {
@@ -863,7 +863,8 @@ export async function registerRoutes(
 
           const baseY = i < perPage ? startY : 60;
           const pos = { x: positions[posIdx].x, y: baseY + positions[posIdx].y };
-          const baseUrl = `${req.protocol}://${req.get("host")}`;
+          const qrProtocol = (req.headers["x-forwarded-proto"] as string) || req.protocol || "http";
+          const baseUrl = `${qrProtocol === "https" || process.env.NODE_ENV === "production" ? "https" : qrProtocol}://${req.get("host")}`;
           const qrUrl = `${baseUrl}/room/${room.qrHash}`;
           const qrDataUrl = await QRCode.toDataURL(qrUrl, { width: qrSize, margin: 1 });
           const qrBuffer = Buffer.from(qrDataUrl.split(",")[1], "base64");
@@ -885,7 +886,8 @@ export async function registerRoutes(
           doc.fontSize(12).text(`Capacity: ${room.capacity}`, { align: "center" });
           doc.moveDown(1);
 
-          const baseUrl = `${req.protocol}://${req.get("host")}`;
+          const qrProtocol = (req.headers["x-forwarded-proto"] as string) || req.protocol || "http";
+          const baseUrl = `${qrProtocol === "https" || process.env.NODE_ENV === "production" ? "https" : qrProtocol}://${req.get("host")}`;
           const qrUrl = `${baseUrl}/room/${room.qrHash}`;
           const qrDataUrl = await QRCode.toDataURL(qrUrl, { width: 400, margin: 1 });
           const qrBuffer = Buffer.from(qrDataUrl.split(",")[1], "base64");
