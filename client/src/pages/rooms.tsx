@@ -556,7 +556,24 @@ export default function RoomsPage() {
               <p className="text-sm text-muted-foreground">
                 Scan to view room details and assigned employees
               </p>
-              <div className="flex gap-2 justify-center">
+              <div className="flex gap-2 justify-center flex-wrap">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (qrDataUrl?.qrDataUrl) {
+                      const link = document.createElement("a");
+                      link.download = `QR_Room_${qrRoom.roomNumber}.png`;
+                      link.href = qrDataUrl.qrDataUrl;
+                      link.click();
+                    }
+                  }}
+                  disabled={!qrDataUrl}
+                  data-testid="button-save-qr"
+                >
+                  <Download className="h-3.5 w-3.5 mr-1" />
+                  Save QR Code
+                </Button>
                 <Button
                   variant="outline"
                   size="sm"
