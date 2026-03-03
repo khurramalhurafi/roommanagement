@@ -84,7 +84,7 @@ export default function LoginPage() {
                           <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                           <Input
                             type="email"
-                            placeholder="admin@company.com"
+                            placeholder="Enter your email"
                             className="pl-9"
                             {...field}
                             data-testid="input-email"
@@ -127,11 +127,6 @@ export default function LoginPage() {
                 </Button>
               </form>
             </Form>
-            <div className="mt-4 p-3 rounded-md bg-muted">
-              <p className="text-xs text-muted-foreground text-center">
-                Default: admin@company.com / admin123
-              </p>
-            </div>
           </CardContent>
         </Card>
       </div>
