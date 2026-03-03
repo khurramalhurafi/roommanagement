@@ -78,7 +78,8 @@ export async function registerRoutes(
     session({
       store: new PgSession({
         pool: sessionPool,
-        createTableIfMissing: true,
+        createTableIfMissing: false,
+        tableName: "session",
       }),
       secret: process.env.SESSION_SECRET!,
       resave: false,
