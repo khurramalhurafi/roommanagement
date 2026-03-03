@@ -82,6 +82,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteUser(id: number): Promise<void> {
+    await db.delete(exportLogs).where(eq(exportLogs.userId, id));
+    await db.delete(transferLogs).where(eq(transferLogs.transferredBy, id));
     await db.delete(users).where(eq(users.id, id));
   }
 
@@ -110,6 +112,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteRoom(id: number): Promise<void> {
+    await db.delete(transferLogs).where(
+      sql`${transferLogs.fromRoomId} = ${id} OR ${transferLogs.toRoomId} = ${id}`
+    );
     await db.delete(rooms).where(eq(rooms.id, id));
   }
 
@@ -137,6 +142,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteEmployee(id: number): Promise<void> {
+    await db.delete(transferLogs).where(eq(transferLogs.employeeId, id));
     await db.delete(employees).where(eq(employees.id, id));
   }
 
