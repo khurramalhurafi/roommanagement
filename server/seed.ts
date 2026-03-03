@@ -1,8 +1,66 @@
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
+import { db } from "./db";
+import { sql } from "drizzle-orm";
 import { storage } from "./storage";
 
+async function createTablesIfNotExist() {
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL UNIQUE,
+      password TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'hr',
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS rooms (
+      id SERIAL PRIMARY KEY,
+      room_number TEXT NOT NULL UNIQUE,
+      building TEXT NOT NULL,
+      floor TEXT NOT NULL,
+      capacity INTEGER NOT NULL DEFAULT 4,
+      status TEXT NOT NULL DEFAULT 'available',
+      qr_hash TEXT NOT NULL UNIQUE,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS employees (
+      id SERIAL PRIMARY KEY,
+      employee_id_no TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      iqama TEXT NOT NULL,
+      mobile TEXT NOT NULL,
+      department TEXT NOT NULL,
+      company TEXT NOT NULL,
+      profile_image TEXT,
+      status TEXT NOT NULL DEFAULT 'active',
+      room_id INTEGER REFERENCES rooms(id),
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS transfer_logs (
+      id SERIAL PRIMARY KEY,
+      employee_id INTEGER NOT NULL REFERENCES employees(id),
+      from_room_id INTEGER REFERENCES rooms(id),
+      to_room_id INTEGER REFERENCES rooms(id),
+      transferred_at TIMESTAMP DEFAULT NOW(),
+      transferred_by INTEGER REFERENCES users(id)
+    )
+  `);
+}
+
 export async function seedDatabase() {
+  await createTablesIfNotExist();
+
   const existingUsers = await storage.getAllUsers();
   if (existingUsers.length > 0) {
     return;
