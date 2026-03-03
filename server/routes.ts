@@ -8,9 +8,15 @@ import path from "path";
 import fs from "fs";
 import QRCode from "qrcode";
 import multer from "multer";
+import pg from "pg";
 import { z } from "zod";
 import { insertEmployeeSchema, insertRoomSchema, insertUserSchema } from "@shared/schema";
 import { storage } from "./storage";
+
+const sessionPool = new pg.Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+});
 
 const uploadsDir = path.join(process.cwd(), "client", "public", "uploads");
 if (!fs.existsSync(uploadsDir)) {
@@ -72,7 +78,7 @@ export async function registerRoutes(
   app.use(
     session({
       store: new PgSession({
-        conString: process.env.DATABASE_URL,
+        pool: sessionPool,
         createTableIfMissing: true,
       }),
       secret: process.env.SESSION_SECRET!,
