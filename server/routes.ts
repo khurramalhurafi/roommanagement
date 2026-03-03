@@ -15,7 +15,6 @@ import { storage } from "./storage";
 
 const sessionPool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
 });
 
 const uploadsDir = path.join(process.cwd(), "client", "public", "uploads");
