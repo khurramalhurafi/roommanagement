@@ -25,7 +25,6 @@ const allowlist = [
   "openai",
   "passport",
   "passport-local",
-  "pdfkit",
   "pg",
   "qrcode",
   "stripe",
