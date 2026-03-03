@@ -5,6 +5,7 @@ import {
   rooms,
   employees,
   transferLogs,
+  exportLogs,
   type User,
   type InsertUser,
   type Room,
@@ -13,6 +14,8 @@ import {
   type InsertEmployee,
   type TransferLog,
   type InsertTransferLog,
+  type ExportLog,
+  type InsertExportLog,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -40,6 +43,8 @@ export interface IStorage {
 
   createTransferLog(log: InsertTransferLog): Promise<TransferLog>;
   getRecentTransfers(limit: number): Promise<TransferLog[]>;
+
+  createExportLog(log: InsertExportLog): Promise<ExportLog>;
 
   getDashboardStats(): Promise<{
     totalEmployees: number;
@@ -150,6 +155,11 @@ export class DatabaseStorage implements IStorage {
 
   async getRecentTransfers(limit: number): Promise<TransferLog[]> {
     return db.select().from(transferLogs).orderBy(desc(transferLogs.transferredAt)).limit(limit);
+  }
+
+  async createExportLog(log: InsertExportLog): Promise<ExportLog> {
+    const [created] = await db.insert(exportLogs).values(log).returning();
+    return created;
   }
 
   async getDashboardStats() {

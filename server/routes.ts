@@ -9,6 +9,8 @@ import fs from "fs";
 import QRCode from "qrcode";
 import multer from "multer";
 import pg from "pg";
+import ExcelJS from "exceljs";
+import PDFDocument from "pdfkit";
 import { z } from "zod";
 import { insertEmployeeSchema, insertRoomSchema, insertUserSchema } from "@shared/schema";
 import { storage } from "./storage";
@@ -454,6 +456,369 @@ export async function registerRoutes(
       }
       await storage.deleteUser(id);
       res.json({ message: "Deleted" });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  async function logExport(userId: number, exportType: string, format: string) {
+    await storage.createExportLog({ userId, exportType, format });
+  }
+
+  app.get("/api/export/employees/excel", requireAuth, async (req, res) => {
+    try {
+      const allEmployees = await storage.getAllEmployees();
+      const allRooms = await storage.getAllRooms();
+      const roomMap = new Map(allRooms.map(r => [r.id, r.roomNumber]));
+
+      let filtered = allEmployees;
+      const department = req.query.department as string | undefined;
+      const company = req.query.company as string | undefined;
+      const roomId = req.query.roomId as string | undefined;
+      const status = req.query.status as string | undefined;
+      if (department) filtered = filtered.filter(e => e.department === department);
+      if (company) filtered = filtered.filter(e => e.company === company);
+      if (roomId) filtered = filtered.filter(e => e.roomId === parseInt(roomId));
+      if (status) filtered = filtered.filter(e => e.status === status);
+
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = "EAM System";
+      workbook.created = new Date();
+      const sheet = workbook.addWorksheet("Employees");
+
+      sheet.columns = [
+        { header: "Employee ID", key: "employeeIdNo", width: 15 },
+        { header: "Name", key: "name", width: 25 },
+        { header: "Iqama", key: "iqama", width: 15 },
+        { header: "Mobile", key: "mobile", width: 18 },
+        { header: "Department", key: "department", width: 20 },
+        { header: "Company", key: "company", width: 25 },
+        { header: "Room No", key: "roomNo", width: 12 },
+        { header: "Status", key: "status", width: 12 },
+      ];
+
+      const headerRow = sheet.getRow(1);
+      headerRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
+      headerRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF2563EB" } };
+      headerRow.alignment = { horizontal: "center" };
+
+      filtered.forEach(emp => {
+        sheet.addRow({
+          employeeIdNo: emp.employeeIdNo,
+          name: emp.name,
+          iqama: emp.iqama,
+          mobile: emp.mobile,
+          department: emp.department,
+          company: emp.company,
+          roomNo: emp.roomId ? roomMap.get(emp.roomId) || "N/A" : "Unassigned",
+          status: emp.status,
+        });
+      });
+
+      const footerRow = sheet.addRow([]);
+      sheet.addRow([`Generated on: ${new Date().toLocaleString()}`]);
+      sheet.addRow([`Total Records: ${filtered.length}`]);
+
+      await logExport(req.session.userId!, "employee", "excel");
+
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename=employees_${Date.now()}.xlsx`);
+      await workbook.xlsx.write(res);
+      res.end();
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/export/employees/pdf", requireAuth, async (req, res) => {
+    try {
+      const allEmployees = await storage.getAllEmployees();
+      const allRooms = await storage.getAllRooms();
+      const roomMap = new Map(allRooms.map(r => [r.id, r.roomNumber]));
+
+      let filtered = allEmployees;
+      const department = req.query.department as string | undefined;
+      const company = req.query.company as string | undefined;
+      const roomId = req.query.roomId as string | undefined;
+      const status = req.query.status as string | undefined;
+      if (department) filtered = filtered.filter(e => e.department === department);
+      if (company) filtered = filtered.filter(e => e.company === company);
+      if (roomId) filtered = filtered.filter(e => e.roomId === parseInt(roomId));
+      if (status) filtered = filtered.filter(e => e.status === status);
+
+      const doc = new PDFDocument({ margin: 40, size: "A4", layout: "landscape" });
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename=employees_${Date.now()}.pdf`);
+      doc.pipe(res);
+
+      doc.fontSize(18).font("Helvetica-Bold").text("Employee List Report", { align: "center" });
+      doc.moveDown(0.3);
+      doc.fontSize(10).font("Helvetica").text(`Generated: ${new Date().toLocaleString()}`, { align: "center" });
+      doc.moveDown(0.3);
+      doc.fontSize(10).text(`Total Records: ${filtered.length}`, { align: "center" });
+      doc.moveDown(1);
+
+      const headers = ["ID", "Name", "Iqama", "Mobile", "Department", "Company", "Room", "Status"];
+      const colWidths = [55, 110, 80, 90, 85, 110, 60, 55];
+      const tableLeft = 40;
+      let y = doc.y;
+
+      const drawTableHeader = (yPos: number) => {
+        doc.font("Helvetica-Bold").fontSize(8);
+        doc.rect(tableLeft, yPos, colWidths.reduce((a, b) => a + b, 0), 20).fill("#2563EB");
+        let x = tableLeft;
+        headers.forEach((h, i) => {
+          doc.fillColor("white").text(h, x + 3, yPos + 5, { width: colWidths[i] - 6 });
+          x += colWidths[i];
+        });
+        doc.fillColor("black");
+        return yPos + 20;
+      };
+
+      y = drawTableHeader(y);
+
+      doc.font("Helvetica").fontSize(7);
+      filtered.forEach((emp, idx) => {
+        if (y > 530) {
+          doc.addPage();
+          y = 40;
+          y = drawTableHeader(y);
+          doc.font("Helvetica").fontSize(7);
+        }
+        const bgColor = idx % 2 === 0 ? "#F8FAFC" : "#FFFFFF";
+        doc.rect(tableLeft, y, colWidths.reduce((a, b) => a + b, 0), 18).fill(bgColor);
+        doc.fillColor("black");
+        const row = [
+          emp.employeeIdNo,
+          emp.name,
+          emp.iqama,
+          emp.mobile,
+          emp.department,
+          emp.company,
+          emp.roomId ? roomMap.get(emp.roomId) || "N/A" : "—",
+          emp.status,
+        ];
+        let x = tableLeft;
+        row.forEach((cell, i) => {
+          doc.text(cell, x + 3, y + 5, { width: colWidths[i] - 6 });
+          x += colWidths[i];
+        });
+        y += 18;
+      });
+
+      const pageRange = doc.bufferedPageRange();
+      for (let i = pageRange.start; i < pageRange.start + pageRange.count; i++) {
+        doc.switchToPage(i);
+        doc.fontSize(8).text(`Page ${i + 1} of ${pageRange.count}`, 40, 560, { align: "center" });
+      }
+
+      await logExport(req.session.userId!, "employee", "pdf");
+      doc.end();
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/export/rooms/excel", requireAuth, async (req, res) => {
+    try {
+      const allRooms = await storage.getAllRooms();
+      const allEmployees = await storage.getAllEmployees();
+
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = "EAM System";
+      workbook.created = new Date();
+      const sheet = workbook.addWorksheet("Rooms");
+
+      sheet.columns = [
+        { header: "Room No", key: "roomNumber", width: 15 },
+        { header: "Building", key: "building", width: 20 },
+        { header: "Floor", key: "floor", width: 10 },
+        { header: "Capacity", key: "capacity", width: 12 },
+        { header: "Occupied", key: "occupied", width: 12 },
+        { header: "Status", key: "status", width: 15 },
+      ];
+
+      const headerRow = sheet.getRow(1);
+      headerRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
+      headerRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF2563EB" } };
+      headerRow.alignment = { horizontal: "center" };
+
+      allRooms.forEach(room => {
+        const occupiedCount = allEmployees.filter(e => e.roomId === room.id).length;
+        const row = sheet.addRow({
+          roomNumber: room.roomNumber,
+          building: room.building,
+          floor: room.floor,
+          capacity: room.capacity,
+          occupied: occupiedCount,
+          status: room.status,
+        });
+
+        if (occupiedCount >= room.capacity) {
+          row.getCell("occupied").font = { bold: true, color: { argb: "FFDC2626" } };
+        }
+      });
+
+      const totalCapacity = allRooms.reduce((sum, r) => sum + r.capacity, 0);
+      const totalOccupied = allEmployees.filter(e => e.roomId !== null).length;
+      sheet.addRow([]);
+      sheet.addRow([`Generated on: ${new Date().toLocaleString()}`]);
+      sheet.addRow([`Total Rooms: ${allRooms.length} | Occupancy: ${totalOccupied}/${totalCapacity} (${totalCapacity > 0 ? Math.round((totalOccupied / totalCapacity) * 100) : 0}%)`]);
+
+      await logExport(req.session.userId!, "room", "excel");
+
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename=rooms_${Date.now()}.xlsx`);
+      await workbook.xlsx.write(res);
+      res.end();
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/export/rooms/pdf", requireAuth, async (req, res) => {
+    try {
+      const allRooms = await storage.getAllRooms();
+      const allEmployees = await storage.getAllEmployees();
+
+      const doc = new PDFDocument({ margin: 40, size: "A4" });
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename=rooms_${Date.now()}.pdf`);
+      doc.pipe(res);
+
+      doc.fontSize(18).font("Helvetica-Bold").text("Room List Report", { align: "center" });
+      doc.moveDown(0.3);
+      doc.fontSize(10).font("Helvetica").text(`Generated: ${new Date().toLocaleString()}`, { align: "center" });
+
+      const totalCapacity = allRooms.reduce((sum, r) => sum + r.capacity, 0);
+      const totalOccupied = allEmployees.filter(e => e.roomId !== null).length;
+      const occupancyPct = totalCapacity > 0 ? Math.round((totalOccupied / totalCapacity) * 100) : 0;
+      doc.moveDown(0.3);
+      doc.fontSize(10).text(`Total Rooms: ${allRooms.length} | Overall Occupancy: ${occupancyPct}%`, { align: "center" });
+      doc.moveDown(1);
+
+      const headers = ["Room No", "Building", "Floor", "Capacity", "Occupied", "Status"];
+      const colWidths = [70, 100, 60, 70, 70, 80];
+      const tableLeft = 40;
+      let y = doc.y;
+
+      const drawHeader = (yPos: number) => {
+        doc.font("Helvetica-Bold").fontSize(9);
+        doc.rect(tableLeft, yPos, colWidths.reduce((a, b) => a + b, 0), 22).fill("#2563EB");
+        let x = tableLeft;
+        headers.forEach((h, i) => {
+          doc.fillColor("white").text(h, x + 4, yPos + 6, { width: colWidths[i] - 8 });
+          x += colWidths[i];
+        });
+        doc.fillColor("black");
+        return yPos + 22;
+      };
+
+      y = drawHeader(y);
+
+      doc.font("Helvetica").fontSize(8);
+      allRooms.forEach((room, idx) => {
+        if (y > 750) {
+          doc.addPage();
+          y = 40;
+          y = drawHeader(y);
+          doc.font("Helvetica").fontSize(8);
+        }
+        const occupiedCount = allEmployees.filter(e => e.roomId === room.id).length;
+        const isFull = occupiedCount >= room.capacity;
+        const bgColor = isFull ? "#FEF2F2" : idx % 2 === 0 ? "#F8FAFC" : "#FFFFFF";
+        doc.rect(tableLeft, y, colWidths.reduce((a, b) => a + b, 0), 20).fill(bgColor);
+        doc.fillColor(isFull ? "#DC2626" : "black");
+        const row = [room.roomNumber, room.building, room.floor, String(room.capacity), String(occupiedCount), room.status];
+        let x = tableLeft;
+        row.forEach((cell, i) => {
+          doc.text(cell, x + 4, y + 5, { width: colWidths[i] - 8 });
+          x += colWidths[i];
+        });
+        doc.fillColor("black");
+        y += 20;
+      });
+
+      const pageRange = doc.bufferedPageRange();
+      for (let i = pageRange.start; i < pageRange.start + pageRange.count; i++) {
+        doc.switchToPage(i);
+        doc.fontSize(8).text(`Page ${i + 1} of ${pageRange.count}`, 40, 780, { align: "center" });
+      }
+
+      await logExport(req.session.userId!, "room", "pdf");
+      doc.end();
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/export/rooms/qr-pdf", requireAuth, async (req, res) => {
+    try {
+      const allRooms = await storage.getAllRooms();
+      const layout = (req.query.layout as string) || "single";
+
+      const doc = new PDFDocument({ margin: 40, size: "A4" });
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename=room_qr_codes_${Date.now()}.pdf`);
+      doc.pipe(res);
+
+      if (layout === "grid") {
+        const perPage = 4;
+        const qrSize = 200;
+        const positions = [
+          { x: 60, y: 80 },
+          { x: 320, y: 80 },
+          { x: 60, y: 450 },
+          { x: 320, y: 450 },
+        ];
+
+        for (let i = 0; i < allRooms.length; i++) {
+          const room = allRooms[i];
+          const posIdx = i % perPage;
+          if (i > 0 && posIdx === 0) doc.addPage();
+
+          const pos = positions[posIdx];
+          const baseUrl = `${req.protocol}://${req.get("host")}`;
+          const qrUrl = `${baseUrl}/room/${room.qrHash}`;
+          const qrDataUrl = await QRCode.toDataURL(qrUrl, { width: qrSize, margin: 1 });
+          const qrBuffer = Buffer.from(qrDataUrl.split(",")[1], "base64");
+
+          doc.font("Helvetica-Bold").fontSize(14).text(`ROOM: ${room.roomNumber}`, pos.x, pos.y, { width: qrSize, align: "center" });
+          doc.font("Helvetica").fontSize(10).text(`${room.building} - Floor ${room.floor}`, pos.x, pos.y + 20, { width: qrSize, align: "center" });
+          doc.image(qrBuffer, pos.x + 25, pos.y + 40, { width: qrSize - 50 });
+        }
+      } else {
+        for (let i = 0; i < allRooms.length; i++) {
+          const room = allRooms[i];
+          if (i > 0) doc.addPage();
+
+          const baseUrl = `${req.protocol}://${req.get("host")}`;
+          const qrUrl = `${baseUrl}/room/${room.qrHash}`;
+          const qrDataUrl = await QRCode.toDataURL(qrUrl, { width: 400, margin: 1 });
+          const qrBuffer = Buffer.from(qrDataUrl.split(",")[1], "base64");
+
+          doc.moveDown(3);
+          doc.font("Helvetica-Bold").fontSize(28).text(`ROOM: ${room.roomNumber}`, { align: "center" });
+          doc.moveDown(0.5);
+          doc.font("Helvetica").fontSize(16).text(`${room.building} - Floor ${room.floor}`, { align: "center" });
+          doc.moveDown(0.5);
+          doc.fontSize(12).text(`Capacity: ${room.capacity}`, { align: "center" });
+          doc.moveDown(1);
+          doc.image(qrBuffer, (doc.page.width - 300) / 2, doc.y, { width: 300 });
+          doc.moveDown(1);
+          doc.y += 310;
+          doc.fontSize(10).text("Scan to view room details", { align: "center" });
+        }
+      }
+
+      const pageRange = doc.bufferedPageRange();
+      for (let i = pageRange.start; i < pageRange.start + pageRange.count; i++) {
+        doc.switchToPage(i);
+        doc.fontSize(8).text(`Page ${i + 1} of ${pageRange.count}`, 40, 780, { align: "center" });
+      }
+
+      await logExport(req.session.userId!, "qr", "pdf");
+      doc.end();
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }

@@ -40,6 +40,12 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Plus,
   Pencil,
   Trash2,
@@ -50,6 +56,9 @@ import {
   X,
   Eye,
   Upload,
+  Download,
+  FileSpreadsheet,
+  FileText,
 } from "lucide-react";
 import type { Employee, Room } from "@shared/schema";
 
@@ -306,10 +315,36 @@ export default function EmployeesPage() {
             Manage employee records and room assignments
           </p>
         </div>
-        <Button onClick={openCreate} data-testid="button-add-employee">
-          <Plus className="h-4 w-4 mr-2" />
-          Add Employee
-        </Button>
+        <div className="flex gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" data-testid="button-export-employees">
+                <Download className="h-4 w-4 mr-2" />
+                Export
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                data-testid="button-export-employees-excel"
+                onClick={() => window.open("/api/export/employees/excel", "_blank")}
+              >
+                <FileSpreadsheet className="h-4 w-4 mr-2" />
+                Export to Excel
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                data-testid="button-export-employees-pdf"
+                onClick={() => window.open("/api/export/employees/pdf", "_blank")}
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                Export to PDF
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button onClick={openCreate} data-testid="button-add-employee">
+            <Plus className="h-4 w-4 mr-2" />
+            Add Employee
+          </Button>
+        </div>
       </div>
 
       <div className="relative max-w-sm">

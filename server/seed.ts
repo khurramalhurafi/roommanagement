@@ -69,6 +69,16 @@ async function createTablesIfNotExist() {
   await db.execute(sql`
     CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire")
   `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS export_logs (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      export_type TEXT NOT NULL,
+      format TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
 }
 
 export async function seedDatabase() {

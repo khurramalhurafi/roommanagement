@@ -47,10 +47,19 @@ export const transferLogs = pgTable("transfer_logs", {
   transferredBy: integer("transferred_by").references(() => users.id),
 });
 
+export const exportLogs = pgTable("export_logs", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  exportType: text("export_type").notNull(),
+  format: text("format").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
 export const insertRoomSchema = createInsertSchema(rooms).omit({ id: true, createdAt: true, qrHash: true });
 export const insertEmployeeSchema = createInsertSchema(employees).omit({ id: true, createdAt: true });
 export const insertTransferLogSchema = createInsertSchema(transferLogs).omit({ id: true, transferredAt: true });
+export const insertExportLogSchema = createInsertSchema(exportLogs).omit({ id: true, createdAt: true });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -60,3 +69,5 @@ export type InsertEmployee = z.infer<typeof insertEmployeeSchema>;
 export type Employee = typeof employees.$inferSelect;
 export type InsertTransferLog = z.infer<typeof insertTransferLogSchema>;
 export type TransferLog = typeof transferLogs.$inferSelect;
+export type InsertExportLog = z.infer<typeof insertExportLogSchema>;
+export type ExportLog = typeof exportLogs.$inferSelect;

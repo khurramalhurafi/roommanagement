@@ -33,6 +33,13 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import {
   Plus,
   Pencil,
   Trash2,
@@ -42,6 +49,11 @@ import {
   Users,
   ExternalLink,
   Copy,
+  Download,
+  FileSpreadsheet,
+  FileText,
+  Printer,
+  LayoutGrid,
 } from "lucide-react";
 import type { Room, Employee } from "@shared/schema";
 
@@ -199,10 +211,51 @@ export default function RoomsPage() {
             Manage accommodation rooms and QR codes
           </p>
         </div>
-        <Button onClick={openCreate} data-testid="button-add-room">
-          <Plus className="h-4 w-4 mr-2" />
-          Add Room
-        </Button>
+        <div className="flex gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" data-testid="button-export-rooms">
+                <Download className="h-4 w-4 mr-2" />
+                Export
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                data-testid="button-export-rooms-excel"
+                onClick={() => window.open("/api/export/rooms/excel", "_blank")}
+              >
+                <FileSpreadsheet className="h-4 w-4 mr-2" />
+                Export to Excel
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                data-testid="button-export-rooms-pdf"
+                onClick={() => window.open("/api/export/rooms/pdf", "_blank")}
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                Export to PDF
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                data-testid="button-export-qr-single"
+                onClick={() => window.open("/api/export/rooms/qr-pdf?layout=single", "_blank")}
+              >
+                <Printer className="h-4 w-4 mr-2" />
+                QR Codes (1 per page)
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                data-testid="button-export-qr-grid"
+                onClick={() => window.open("/api/export/rooms/qr-pdf?layout=grid", "_blank")}
+              >
+                <LayoutGrid className="h-4 w-4 mr-2" />
+                QR Codes (4 per page)
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button onClick={openCreate} data-testid="button-add-room">
+            <Plus className="h-4 w-4 mr-2" />
+            Add Room
+          </Button>
+        </div>
       </div>
 
       <div className="relative max-w-sm">
