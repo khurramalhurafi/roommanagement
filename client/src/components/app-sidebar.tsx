@@ -35,7 +35,7 @@ export function AppSidebar({ user }: { user: User }) {
   const handleLogout = async () => {
     await apiRequest("POST", "/api/auth/logout");
     queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-    window.location.href = "/login";
+    window.location.href = "/";
   };
 
   return (

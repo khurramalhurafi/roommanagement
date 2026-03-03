@@ -40,7 +40,7 @@ export default function LoginPage() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      window.location.href = "/";
     },
     onError: (error: Error) => {
       toast({
