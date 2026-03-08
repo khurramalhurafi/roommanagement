@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -86,6 +87,11 @@ export default function EmployeesPage() {
   const [detailEmployee, setDetailEmployee] = useState<Employee | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
+  const [showDeptRename, setShowDeptRename] = useState(false);
+  const [renamingDept, setRenamingDept] = useState<string>("");
+  const [newDeptName, setNewDeptName] = useState<string>("");
+  const [showDeptDelete, setShowDeptDelete] = useState(false);
+  const [deletingDept, setDeletingDept] = useState<string>("");
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -211,6 +217,41 @@ export default function EmployeesPage() {
       setShowTransfer(false);
       setTransferEmployee(null);
       toast({ title: "Employee transferred successfully" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const renameDeptMutation = useMutation({
+    mutationFn: async ({ oldName, newName }: { oldName: string; newName: string }) => {
+      const res = await apiRequest("PATCH", "/api/departments/rename", { oldName, newName });
+      return res.json();
+    },
+    onSuccess: (data, { oldName, newName }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
+      if (departmentFilter === oldName) setDepartmentFilter(newName);
+      setShowDeptRename(false);
+      setRenamingDept("");
+      setNewDeptName("");
+      toast({ title: `Department renamed to "${newName}"`, description: `${data.count} employees updated` });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const deleteDeptMutation = useMutation({
+    mutationFn: async (name: string) => {
+      const res = await apiRequest("DELETE", `/api/departments/${encodeURIComponent(name)}`);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
+      if (departmentFilter === deletingDept) setDepartmentFilter("all");
+      setShowDeptDelete(false);
+      setDeletingDept("");
+      toast({ title: "Department deleted", description: `${data.count} employees cleared` });
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -447,17 +488,40 @@ export default function EmployeesPage() {
             return (
               <Card
                 key={dept}
-                className="cursor-pointer hover-elevate border-l-4 border-l-primary/50"
-                onClick={() => setDepartmentFilter(dept)}
+                className="hover-elevate border-l-4 border-l-primary/50"
                 data-testid={`card-dept-${dept}`}
               >
                 <CardContent className="p-3">
                   <div className="flex items-start justify-between gap-1 mb-1">
-                    <p className="text-xs font-medium leading-tight line-clamp-2">{dept}</p>
-                    <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
+                    <button
+                      className="text-xs font-medium leading-tight line-clamp-2 text-left hover:text-primary"
+                      onClick={() => setDepartmentFilter(dept)}
+                    >
+                      {dept}
+                    </button>
+                    <div className="flex items-center gap-0.5 shrink-0">
+                      <button
+                        className="p-0.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground"
+                        onClick={e => { e.stopPropagation(); setRenamingDept(dept); setNewDeptName(dept); setShowDeptRename(true); }}
+                        title="Rename department"
+                        data-testid={`button-rename-dept-${dept}`}
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </button>
+                      <button
+                        className="p-0.5 rounded hover:bg-accent text-muted-foreground hover:text-destructive"
+                        onClick={e => { e.stopPropagation(); setDeletingDept(dept); setShowDeptDelete(true); }}
+                        title="Delete department"
+                        data-testid={`button-delete-dept-${dept}`}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </div>
                   </div>
-                  <p className="text-xl font-bold">{deptEmps.length}</p>
-                  <p className="text-xs text-muted-foreground">{assignedCount} assigned</p>
+                  <button className="w-full text-left" onClick={() => setDepartmentFilter(dept)}>
+                    <p className="text-xl font-bold">{deptEmps.length}</p>
+                    <p className="text-xs text-muted-foreground">{assignedCount} assigned</p>
+                  </button>
                   <button
                     className="mt-2 text-xs text-primary hover:underline flex items-center gap-0.5"
                     onClick={e => { e.stopPropagation(); openCreate(dept); }}
@@ -474,16 +538,35 @@ export default function EmployeesPage() {
 
       {/* Active department header */}
       {departmentFilter !== "all" && (
-        <div className="flex items-center justify-between p-3 rounded-md bg-primary/5 border border-primary/20">
+        <div className="flex items-center justify-between p-3 rounded-md bg-primary/5 border border-primary/20 flex-wrap gap-2">
           <div className="flex items-center gap-2">
             <Building2 className="h-4 w-4 text-primary" />
             <span className="font-medium text-sm">Department: {departmentFilter}</span>
             <Badge variant="secondary">{filteredEmployees.length} employees</Badge>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Button size="sm" variant="outline" onClick={() => openCreate(departmentFilter)} data-testid="button-add-to-active-dept">
               <Plus className="h-3.5 w-3.5 mr-1" />
-              Add to {departmentFilter}
+              Add Employee
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => { setRenamingDept(departmentFilter); setNewDeptName(departmentFilter); setShowDeptRename(true); }}
+              data-testid="button-rename-active-dept"
+            >
+              <Pencil className="h-3.5 w-3.5 mr-1" />
+              Rename
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-destructive hover:text-destructive"
+              onClick={() => { setDeletingDept(departmentFilter); setShowDeptDelete(true); }}
+              data-testid="button-delete-active-dept"
+            >
+              <Trash2 className="h-3.5 w-3.5 mr-1" />
+              Delete
             </Button>
             <button
               onClick={() => setDepartmentFilter("all")}
@@ -972,6 +1055,66 @@ export default function EmployeesPage() {
               </form>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Rename Department Dialog */}
+      <Dialog open={showDeptRename} onOpenChange={open => { setShowDeptRename(open); if (!open) { setRenamingDept(""); setNewDeptName(""); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Rename Department</DialogTitle>
+            <DialogDescription>
+              Rename "<span className="font-medium">{renamingDept}</span>" — all employees in this department will be updated.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">New Department Name</label>
+              <Input
+                value={newDeptName}
+                onChange={e => setNewDeptName(e.target.value)}
+                placeholder="Enter new name..."
+                data-testid="input-dept-rename"
+                onKeyDown={e => { if (e.key === "Enter" && newDeptName.trim() && newDeptName.trim() !== renamingDept) renameDeptMutation.mutate({ oldName: renamingDept, newName: newDeptName.trim() }); }}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowDeptRename(false)} data-testid="button-cancel-rename">Cancel</Button>
+              <Button
+                onClick={() => renameDeptMutation.mutate({ oldName: renamingDept, newName: newDeptName.trim() })}
+                disabled={!newDeptName.trim() || newDeptName.trim() === renamingDept || renameDeptMutation.isPending}
+                data-testid="button-confirm-rename"
+              >
+                {renameDeptMutation.isPending ? "Renaming..." : "Rename"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Department Confirmation */}
+      <Dialog open={showDeptDelete} onOpenChange={open => { setShowDeptDelete(open); if (!open) setDeletingDept(""); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete Department</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete "<span className="font-medium">{deletingDept}</span>"?{" "}
+              {employees.filter(e => e.department === deletingDept).length > 0
+                ? `${employees.filter(e => e.department === deletingDept).length} employee(s) will have their department cleared.`
+                : "No employees are currently in this department."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setShowDeptDelete(false)} data-testid="button-cancel-delete-dept">Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={() => deleteDeptMutation.mutate(deletingDept)}
+              disabled={deleteDeptMutation.isPending}
+              data-testid="button-confirm-delete-dept"
+            >
+              {deleteDeptMutation.isPending ? "Deleting..." : "Delete Department"}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

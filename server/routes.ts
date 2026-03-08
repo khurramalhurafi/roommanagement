@@ -331,6 +331,28 @@ export async function registerRoutes(
     }
   });
 
+  app.patch("/api/departments/rename", requireAuth, async (req, res) => {
+    try {
+      const { oldName, newName } = req.body;
+      if (!oldName || !newName) return res.status(400).json({ message: "oldName and newName are required" });
+      if (oldName === newName) return res.status(400).json({ message: "New name must be different" });
+      const count = await storage.renameDepartment(oldName, newName);
+      res.json({ message: `Renamed department for ${count} employees`, count });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/departments/:name", requireAuth, async (req, res) => {
+    try {
+      const name = decodeURIComponent(req.params.name as string);
+      const count = await storage.deleteDepartment(name);
+      res.json({ message: `Cleared department for ${count} employees`, count });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   app.post("/api/employees/:id/transfer", requireAuth, async (req, res) => {
     try {
       const id = parseInt(req.params.id as string);

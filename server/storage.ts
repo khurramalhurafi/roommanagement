@@ -50,6 +50,8 @@ export interface IStorage {
   updateEmployee(id: number, employee: Partial<InsertEmployee>): Promise<Employee | undefined>;
   deleteEmployee(id: number): Promise<void>;
   countEmployeesInRoom(roomId: number): Promise<number>;
+  renameDepartment(oldName: string, newName: string): Promise<number>;
+  deleteDepartment(name: string): Promise<number>;
 
   createTransferLog(log: InsertTransferLog): Promise<TransferLog>;
   getRecentTransfers(limit: number): Promise<TransferLog[]>;
@@ -201,6 +203,24 @@ export class DatabaseStorage implements IStorage {
       .from(employees)
       .where(eq(employees.roomId, roomId));
     return result[0]?.count ?? 0;
+  }
+
+  async renameDepartment(oldName: string, newName: string): Promise<number> {
+    const updated = await db
+      .update(employees)
+      .set({ department: newName })
+      .where(eq(employees.department, oldName))
+      .returning();
+    return updated.length;
+  }
+
+  async deleteDepartment(name: string): Promise<number> {
+    const updated = await db
+      .update(employees)
+      .set({ department: "" })
+      .where(eq(employees.department, name))
+      .returning();
+    return updated.length;
   }
 
   async createTransferLog(log: InsertTransferLog): Promise<TransferLog> {
