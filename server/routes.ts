@@ -548,14 +548,25 @@ export async function registerRoutes(
     const company = query.company as string | undefined;
     const roomId = query.roomId as string | undefined;
     const cabinId = query.cabinId as string | undefined;
+    const cabinIds = query.cabinIds as string | undefined;
     const status = query.status as string | undefined;
 
     let filteredEmployees = employees;
     let filteredRooms = rooms;
     let filteredCabins = cabins;
 
-    if (cabinId) filteredCabins = filteredCabins.filter((c: any) => c.id === parseInt(cabinId));
-    if (cabinId) filteredRooms = filteredRooms.filter((r: any) => r.portaCabinId === parseInt(cabinId));
+    if (cabinIds) {
+      const ids = cabinIds.split(",").map((id: string) => parseInt(id.trim())).filter((n: number) => !isNaN(n));
+      if (ids.length > 0) {
+        const idSet = new Set(ids);
+        filteredCabins = filteredCabins.filter((c: any) => idSet.has(c.id));
+        filteredRooms = filteredRooms.filter((r: any) => r.portaCabinId !== null && idSet.has(r.portaCabinId));
+      }
+    } else if (cabinId) {
+      filteredCabins = filteredCabins.filter((c: any) => c.id === parseInt(cabinId));
+      filteredRooms = filteredRooms.filter((r: any) => r.portaCabinId === parseInt(cabinId));
+    }
+
     if (roomId) filteredRooms = filteredRooms.filter((r: any) => r.id === parseInt(roomId));
     if (status) filteredRooms = filteredRooms.filter((r: any) => r.status === status);
 
@@ -563,7 +574,7 @@ export async function registerRoutes(
     if (company) filteredEmployees = filteredEmployees.filter((e: any) => e.company === company);
 
     const filteredRoomIds = new Set(filteredRooms.map((r: any) => r.id));
-    if (cabinId || roomId || status) {
+    if (cabinIds || cabinId || roomId || status) {
       filteredEmployees = filteredEmployees.filter((e: any) => e.roomId !== null && filteredRoomIds.has(e.roomId));
     }
 

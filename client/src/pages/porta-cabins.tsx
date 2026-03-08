@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import {
   Plus,
@@ -89,7 +90,7 @@ export default function PortaCabinsPage() {
   const [editingCabin, setEditingCabin] = useState<PortaCabin | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [showExportDialog, setShowExportDialog] = useState(false);
-  const [exportCabinId, setExportCabinId] = useState<string>("all");
+  const [exportCabinIds, setExportCabinIds] = useState<Set<number>>(new Set());
   const [exportType, setExportType] = useState<string>("employees-excel");
   const [isExporting, setIsExporting] = useState(false);
 
@@ -134,27 +135,49 @@ export default function PortaCabinsPage() {
     }
   };
 
+  const toggleExportCabin = (id: number) => {
+    setExportCabinIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAllExportCabins = () => {
+    if (exportCabinIds.size === cabins.length) {
+      setExportCabinIds(new Set());
+    } else {
+      setExportCabinIds(new Set(cabins.map(c => c.id)));
+    }
+  };
+
   const doExport = () => {
-    const params = exportCabinId !== "all" ? `?cabinId=${exportCabinId}` : "";
-    const cabinLabel = exportCabinId !== "all"
-      ? (cabins.find(c => c.id.toString() === exportCabinId)?.name || "cabin")
-      : "all";
     const ts = Date.now();
+    let params = "";
+    let label = "all";
+    if (exportCabinIds.size > 0 && exportCabinIds.size < cabins.length) {
+      const ids = Array.from(exportCabinIds).join(",");
+      params = `?cabinIds=${ids}`;
+      label = exportCabinIds.size === 1
+        ? (cabins.find(c => exportCabinIds.has(c.id))?.name || "cabin")
+        : `${exportCabinIds.size}_cabins`;
+    }
     switch (exportType) {
       case "employees-excel":
-        handleExport(`/api/export/employees/excel${params}`, `employees_${cabinLabel}_${ts}.xlsx`);
+        handleExport(`/api/export/employees/excel${params}`, `employees_${label}_${ts}.xlsx`);
         break;
       case "employees-pdf":
-        handleExport(`/api/export/employees/pdf${params}`, `employees_${cabinLabel}_${ts}.pdf`);
+        handleExport(`/api/export/employees/pdf${params}`, `employees_${label}_${ts}.pdf`);
         break;
       case "rooms-excel":
-        handleExport(`/api/export/rooms/excel${params}`, `rooms_${cabinLabel}_${ts}.xlsx`);
+        handleExport(`/api/export/rooms/excel${params}`, `rooms_${label}_${ts}.xlsx`);
         break;
       case "rooms-pdf":
-        handleExport(`/api/export/rooms/pdf${params}`, `rooms_${cabinLabel}_${ts}.pdf`);
+        handleExport(`/api/export/rooms/pdf${params}`, `rooms_${label}_${ts}.pdf`);
         break;
       case "qr-pdf":
-        handleExport(`/api/export/rooms/qr-pdf${params}`, `qr_codes_${cabinLabel}_${ts}.pdf`);
+        handleExport(`/api/export/rooms/qr-pdf${params}`, `qr_codes_${label}_${ts}.pdf`);
         break;
     }
     setShowExportDialog(false);
@@ -464,26 +487,62 @@ export default function PortaCabinsPage() {
       )}
 
       {/* ===== Export Dialog ===== */}
-      <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
+      <Dialog open={showExportDialog} onOpenChange={open => { setShowExportDialog(open); if (!open) setExportCabinIds(new Set()); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Export Report</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-5 py-2">
+            {/* Cabin selection — multi-select checkboxes */}
             <div>
-              <label className="text-sm font-medium block mb-1.5">Filter by Cabin</label>
-              <Select value={exportCabinId} onValueChange={setExportCabinId}>
-                <SelectTrigger data-testid="select-export-cabin">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Cabins</SelectItem>
-                  {cabins.map(c => (
-                    <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-medium">Select Cabins</label>
+                <button
+                  type="button"
+                  onClick={toggleAllExportCabins}
+                  className="text-xs text-primary hover:underline"
+                  data-testid="button-toggle-all-export-cabins"
+                >
+                  {exportCabinIds.size === cabins.length ? "Deselect All" : "Select All"}
+                </button>
+              </div>
+              <div className="rounded-md border divide-y max-h-48 overflow-y-auto">
+                {cabins.map(cabin => {
+                  const cabinRoomCount = rooms.filter(r => r.portaCabinId === cabin.id).length;
+                  const isChecked = exportCabinIds.has(cabin.id);
+                  return (
+                    <label
+                      key={cabin.id}
+                      className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-accent transition-colors"
+                      data-testid={`checkbox-export-cabin-${cabin.id}`}
+                    >
+                      <Checkbox
+                        checked={isChecked}
+                        onCheckedChange={() => toggleExportCabin(cabin.id)}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium">{cabin.name}</p>
+                        {cabin.location && (
+                          <p className="text-xs text-muted-foreground flex items-center gap-0.5">
+                            <MapPin className="h-3 w-3" />{cabin.location}
+                          </p>
+                        )}
+                      </div>
+                      <span className="text-xs text-muted-foreground shrink-0">{cabinRoomCount} rooms</span>
+                    </label>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1.5">
+                {exportCabinIds.size === 0
+                  ? "No cabins selected — all cabins will be included"
+                  : exportCabinIds.size === cabins.length
+                  ? `All ${cabins.length} cabins selected`
+                  : `${exportCabinIds.size} of ${cabins.length} cabins selected`}
+              </p>
             </div>
+
+            {/* Report type */}
             <div>
               <label className="text-sm font-medium block mb-1.5">Report Type</label>
               <Select value={exportType} onValueChange={setExportType}>
@@ -509,7 +568,8 @@ export default function PortaCabinsPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex justify-end gap-2 pt-2">
+
+            <div className="flex justify-end gap-2 pt-1">
               <Button variant="outline" onClick={() => setShowExportDialog(false)}>Cancel</Button>
               <Button onClick={doExport} disabled={isExporting} data-testid="button-confirm-export">
                 <Download className="h-4 w-4 mr-2" />
