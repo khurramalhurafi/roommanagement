@@ -84,9 +84,34 @@ export default function EmployeesPage() {
   const [detailEmployee, setDetailEmployee] = useState<Employee | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const detailFileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+
+  const handleExport = async (url: string, filename: string) => {
+    setIsExporting(true);
+    try {
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: "Export failed" }));
+        throw new Error(err.message || "Export failed");
+      }
+      const blob = await res.blob();
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
+      toast({ title: "Export downloaded successfully" });
+    } catch (error: any) {
+      toast({ title: "Export failed", description: error.message, variant: "destructive" });
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const { data: employees = [], isLoading } = useQuery<Employee[]>({
     queryKey: ["/api/employees"],
@@ -334,14 +359,14 @@ export default function EmployeesPage() {
             <DropdownMenuContent align="end">
               <DropdownMenuItem
                 data-testid="button-export-employees-excel"
-                onClick={() => window.open("/api/export/employees/excel", "_blank")}
+                onClick={() => handleExport("/api/export/employees/excel", `employees_${Date.now()}.xlsx`)}
               >
                 <FileSpreadsheet className="h-4 w-4 mr-2" />
                 Export to Excel
               </DropdownMenuItem>
               <DropdownMenuItem
                 data-testid="button-export-employees-pdf"
-                onClick={() => window.open("/api/export/employees/pdf", "_blank")}
+                onClick={() => handleExport("/api/export/employees/pdf", `employees_${Date.now()}.pdf`)}
               >
                 <FileText className="h-4 w-4 mr-2" />
                 Export to PDF

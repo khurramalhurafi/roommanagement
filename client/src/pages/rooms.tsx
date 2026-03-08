@@ -75,7 +75,32 @@ export default function RoomsPage() {
   const [showQR, setShowQR] = useState(false);
   const [qrRoom, setQrRoom] = useState<Room | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [isExporting, setIsExporting] = useState(false);
   const { toast } = useToast();
+
+  const handleExport = async (url: string, filename: string) => {
+    setIsExporting(true);
+    try {
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: "Export failed" }));
+        throw new Error(err.message || "Export failed");
+      }
+      const blob = await res.blob();
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
+      toast({ title: "Export downloaded successfully" });
+    } catch (error: any) {
+      toast({ title: "Export failed", description: error.message, variant: "destructive" });
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const searchParams = new URLSearchParams(window.location.search);
   const statusFilter = searchParams.get("status");
@@ -242,14 +267,14 @@ export default function RoomsPage() {
             <DropdownMenuContent align="end">
               <DropdownMenuItem
                 data-testid="button-export-rooms-excel"
-                onClick={() => window.open(`/api/export/rooms/excel${cabinFilter ? `?cabinId=${cabinFilter}` : ""}`, "_blank")}
+                onClick={() => handleExport(`/api/export/rooms/excel${cabinFilter ? `?cabinId=${cabinFilter}` : ""}`, `rooms_${Date.now()}.xlsx`)}
               >
                 <FileSpreadsheet className="h-4 w-4 mr-2" />
                 Export to Excel
               </DropdownMenuItem>
               <DropdownMenuItem
                 data-testid="button-export-rooms-pdf"
-                onClick={() => window.open(`/api/export/rooms/pdf${cabinFilter ? `?cabinId=${cabinFilter}` : ""}`, "_blank")}
+                onClick={() => handleExport(`/api/export/rooms/pdf${cabinFilter ? `?cabinId=${cabinFilter}` : ""}`, `rooms_${Date.now()}.pdf`)}
               >
                 <FileText className="h-4 w-4 mr-2" />
                 Export to PDF
@@ -257,14 +282,14 @@ export default function RoomsPage() {
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 data-testid="button-export-qr-single"
-                onClick={() => window.open(`/api/export/rooms/qr-pdf?layout=single${cabinFilter ? `&cabinId=${cabinFilter}` : ""}`, "_blank")}
+                onClick={() => handleExport(`/api/export/rooms/qr-pdf?layout=single${cabinFilter ? `&cabinId=${cabinFilter}` : ""}`, `qr_codes_single_${Date.now()}.pdf`)}
               >
                 <Printer className="h-4 w-4 mr-2" />
                 QR Codes (1 per page)
               </DropdownMenuItem>
               <DropdownMenuItem
                 data-testid="button-export-qr-grid"
-                onClick={() => window.open(`/api/export/rooms/qr-pdf?layout=grid${cabinFilter ? `&cabinId=${cabinFilter}` : ""}`, "_blank")}
+                onClick={() => handleExport(`/api/export/rooms/qr-pdf?layout=grid${cabinFilter ? `&cabinId=${cabinFilter}` : ""}`, `qr_codes_grid_${Date.now()}.pdf`)}
               >
                 <LayoutGrid className="h-4 w-4 mr-2" />
                 QR Codes (4 per page)
