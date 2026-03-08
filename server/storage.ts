@@ -64,6 +64,16 @@ export interface IStorage {
     availableRooms: number;
     occupancyRate: number;
     recentTransfers: any[];
+    cabinBreakdown: Array<{
+      id: number;
+      name: string;
+      location: string | null;
+      status: string;
+      totalRooms: number;
+      occupiedRooms: number;
+      availableRooms: number;
+      maintenanceRooms: number;
+    }>;
   }>;
 }
 
@@ -209,8 +219,25 @@ export class DatabaseStorage implements IStorage {
 
   async getDashboardStats() {
     const allEmployees = await db.select({ count: sql<number>`count(*)::int` }).from(employees);
-    const allCabins = await db.select({ count: sql<number>`count(*)::int` }).from(portaCabins);
-    const allRooms = await db.select({ count: sql<number>`count(*)::int` }).from(rooms);
+    const allCabinsRows = await db.select().from(portaCabins).orderBy(portaCabins.name);
+    const allCabins = [{ count: allCabinsRows.length }];
+    const allRoomsRows = await db.select().from(rooms);
+    const allRooms = [{ count: allRoomsRows.length }];
+
+    const cabinBreakdown = allCabinsRows.map((cabin) => {
+      const cabinRooms = allRoomsRows.filter(r => r.portaCabinId === cabin.id);
+      return {
+        id: cabin.id,
+        name: cabin.name,
+        location: cabin.location,
+        status: cabin.status,
+        totalRooms: cabinRooms.length,
+        occupiedRooms: cabinRooms.filter(r => r.status === "occupied").length,
+        availableRooms: cabinRooms.filter(r => r.status === "available").length,
+        maintenanceRooms: cabinRooms.filter(r => r.status === "maintenance").length,
+      };
+    });
+
     const occupied = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(rooms)
@@ -220,7 +247,7 @@ export class DatabaseStorage implements IStorage {
       .from(rooms)
       .where(eq(rooms.status, "available"));
 
-    const totalRooms = allRooms[0]?.count ?? 0;
+    const totalRooms = allRoomsRows.length;
     const occupiedRooms = occupied[0]?.count ?? 0;
     const occupancyRate = totalRooms > 0 ? Math.round((occupiedRooms / totalRooms) * 100) : 0;
 
@@ -252,6 +279,7 @@ export class DatabaseStorage implements IStorage {
       availableRooms: available[0]?.count ?? 0,
       occupancyRate,
       recentTransfers,
+      cabinBreakdown,
     };
   }
 }
