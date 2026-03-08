@@ -59,6 +59,8 @@ import {
   Download,
   FileSpreadsheet,
   FileText,
+  Building2,
+  ChevronDown,
 } from "lucide-react";
 import type { Employee, Room, PortaCabin } from "@shared/schema";
 
@@ -83,6 +85,7 @@ export default function EmployeesPage() {
   const [showDetails, setShowDetails] = useState(false);
   const [detailEmployee, setDetailEmployee] = useState<Employee | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [departmentFilter, setDepartmentFilter] = useState<string>("all");
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -268,14 +271,14 @@ export default function EmployeesPage() {
     setShowForm(true);
   };
 
-  const openCreate = () => {
+  const openCreate = (dept?: string) => {
     setEditingEmployee(null);
     form.reset({
       employeeIdNo: "",
       name: "",
       iqama: "",
       mobile: "",
-      department: "",
+      department: dept || (departmentFilter !== "all" ? departmentFilter : ""),
       company: "",
       status: "active",
       roomId: null,
@@ -308,13 +311,20 @@ export default function EmployeesPage() {
     setShowDetails(true);
   };
 
-  const filteredEmployees = employees.filter(
-    (e) =>
+  const departments = Array.from(new Set(employees.map(e => e.department).filter(Boolean))).sort();
+
+  const filteredEmployees = employees.filter((e) => {
+    const matchesSearch =
       e.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       e.employeeIdNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
       e.department.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      e.company.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+      e.company.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesDept = departmentFilter === "all" || e.department === departmentFilter;
+    return matchesSearch && matchesDept;
+  });
+
+  const deptParam = departmentFilter !== "all" ? `?department=${encodeURIComponent(departmentFilter)}` : "";
+  const deptLabel = departmentFilter !== "all" ? departmentFilter.replace(/\s+/g, "_") : "all";
 
   const getCabinName = (portaCabinId: number | null | undefined) => {
     if (!portaCabinId) return null;
@@ -359,37 +369,132 @@ export default function EmployeesPage() {
             <DropdownMenuContent align="end">
               <DropdownMenuItem
                 data-testid="button-export-employees-excel"
-                onClick={() => handleExport("/api/export/employees/excel", `employees_${Date.now()}.xlsx`)}
+                onClick={() => handleExport(`/api/export/employees/excel${deptParam}`, `employees_${deptLabel}_${Date.now()}.xlsx`)}
               >
                 <FileSpreadsheet className="h-4 w-4 mr-2" />
-                Export to Excel
+                Export to Excel {departmentFilter !== "all" && `(${departmentFilter})`}
               </DropdownMenuItem>
               <DropdownMenuItem
                 data-testid="button-export-employees-pdf"
-                onClick={() => handleExport("/api/export/employees/pdf", `employees_${Date.now()}.pdf`)}
+                onClick={() => handleExport(`/api/export/employees/pdf${deptParam}`, `employees_${deptLabel}_${Date.now()}.pdf`)}
               >
                 <FileText className="h-4 w-4 mr-2" />
-                Export to PDF
+                Export to PDF {departmentFilter !== "all" && `(${departmentFilter})`}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button onClick={openCreate} data-testid="button-add-employee">
+          <Button onClick={() => openCreate()} data-testid="button-add-employee">
             <Plus className="h-4 w-4 mr-2" />
             Add Employee
           </Button>
         </div>
       </div>
 
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Search employees..."
-          className="pl-9"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          data-testid="input-search-employees"
-        />
+      {/* Search + Department Filter row */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative max-w-sm flex-shrink-0">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search employees..."
+            className="pl-9"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            data-testid="input-search-employees"
+          />
+        </div>
+        {departments.length > 0 && (
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
+            <button
+              onClick={() => setDepartmentFilter("all")}
+              className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                departmentFilter === "all"
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-background text-muted-foreground border-border hover:bg-accent"
+              }`}
+              data-testid="filter-dept-all"
+            >
+              All ({employees.length})
+            </button>
+            {departments.map(dept => {
+              const count = employees.filter(e => e.department === dept).length;
+              const isActive = departmentFilter === dept;
+              return (
+                <button
+                  key={dept}
+                  onClick={() => setDepartmentFilter(isActive ? "all" : dept)}
+                  className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                    isActive
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-background text-muted-foreground border-border hover:bg-accent"
+                  }`}
+                  data-testid={`filter-dept-${dept}`}
+                >
+                  {dept} ({count})
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
+
+      {/* Department summary cards (only when showing all) */}
+      {departmentFilter === "all" && departments.length > 0 && !isLoading && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+          {departments.map(dept => {
+            const deptEmps = employees.filter(e => e.department === dept);
+            const assignedCount = deptEmps.filter(e => e.roomId !== null).length;
+            return (
+              <Card
+                key={dept}
+                className="cursor-pointer hover-elevate border-l-4 border-l-primary/50"
+                onClick={() => setDepartmentFilter(dept)}
+                data-testid={`card-dept-${dept}`}
+              >
+                <CardContent className="p-3">
+                  <div className="flex items-start justify-between gap-1 mb-1">
+                    <p className="text-xs font-medium leading-tight line-clamp-2">{dept}</p>
+                    <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
+                  </div>
+                  <p className="text-xl font-bold">{deptEmps.length}</p>
+                  <p className="text-xs text-muted-foreground">{assignedCount} assigned</p>
+                  <button
+                    className="mt-2 text-xs text-primary hover:underline flex items-center gap-0.5"
+                    onClick={e => { e.stopPropagation(); openCreate(dept); }}
+                    data-testid={`button-add-to-dept-${dept}`}
+                  >
+                    <Plus className="h-3 w-3" />Add employee
+                  </button>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Active department header */}
+      {departmentFilter !== "all" && (
+        <div className="flex items-center justify-between p-3 rounded-md bg-primary/5 border border-primary/20">
+          <div className="flex items-center gap-2">
+            <Building2 className="h-4 w-4 text-primary" />
+            <span className="font-medium text-sm">Department: {departmentFilter}</span>
+            <Badge variant="secondary">{filteredEmployees.length} employees</Badge>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => openCreate(departmentFilter)} data-testid="button-add-to-active-dept">
+              <Plus className="h-3.5 w-3.5 mr-1" />
+              Add to {departmentFilter}
+            </Button>
+            <button
+              onClick={() => setDepartmentFilter("all")}
+              className="text-xs text-muted-foreground hover:text-foreground"
+              data-testid="button-clear-dept-filter"
+            >
+              ✕ Clear filter
+            </button>
+          </div>
+        </div>
+      )}
 
       {isLoading ? (
         <Card>
@@ -403,8 +508,17 @@ export default function EmployeesPage() {
             <Users className="h-12 w-12 text-muted-foreground/40 mx-auto mb-3" />
             <h3 className="text-lg font-semibold">No employees found</h3>
             <p className="text-muted-foreground mt-1">
-              {searchTerm ? "Try adjusting your search" : "Add your first employee to get started"}
+              {searchTerm
+                ? "Try adjusting your search"
+                : departmentFilter !== "all"
+                ? `No employees in the ${departmentFilter} department yet`
+                : "Add your first employee to get started"}
             </p>
+            {departmentFilter !== "all" && !searchTerm && (
+              <Button size="sm" className="mt-3" onClick={() => openCreate(departmentFilter)}>
+                <Plus className="h-3.5 w-3.5 mr-1" />Add to {departmentFilter}
+              </Button>
+            )}
           </CardContent>
         </Card>
       ) : (
