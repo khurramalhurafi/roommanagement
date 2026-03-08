@@ -1,0 +1,372 @@
+Great 👍 — this is a **structural upgrade** to your system. Instead of only **Rooms**, you will now have **Porta Cabins → Rooms → Employees** (a 3-level structure). I’ll describe the changes clearly so your developer can implement them without confusion.
+
+---
+
+# 🏗 Porta Cabin Accommodation Management (System Upgrade)
+
+## New Structure
+
+Old System:
+
+```
+Rooms → Employees
+```
+
+New System:
+
+```
+Porta Cabin → Rooms → Employees
+```
+
+Example:
+
+```
+Porta Cabin A
+   ├ Room 1
+   ├ Room 2
+   ├ Room 3
+
+Porta Cabin B
+   ├ Room 1
+   ├ Room 2
+   ├ Room 3
+   ├ Room 4
+```
+
+Each **room will have its own QR code**.
+
+---
+
+# 1️⃣ New Module: Porta Cabin Management
+
+Add a new menu:
+
+**Porta Cabins**
+
+Functions:
+
+• Add Porta Cabin
+• Edit Porta Cabin
+• Delete Porta Cabin
+• View Rooms inside Porta Cabin
+
+---
+
+## Porta Cabin Fields
+
+| Field       | Description                |
+| ----------- | -------------------------- |
+| Cabin ID    | Auto Generated             |
+| Cabin Name  | Example: Cabin A / Cabin B |
+| Location    | Optional                   |
+| Total Rooms | Auto calculated            |
+| Status      | Active / Inactive          |
+
+---
+
+# 2️⃣ Room Management (Updated)
+
+Now rooms belong to a **specific Porta Cabin**.
+
+### Room Fields
+
+| Field            | Description |
+| ---------------- | ----------- |
+| Room Number      |             |
+| Porta Cabin      |             |
+| Capacity         |             |
+| Floor (optional) |             |
+| Status           |             |
+| QR Code          |             |
+
+Example:
+
+| Cabin   | Room   | Capacity |
+| ------- | ------ | -------- |
+| Cabin A | Room 1 | 4        |
+| Cabin A | Room 2 | 4        |
+| Cabin B | Room 1 | 6        |
+
+---
+
+# 3️⃣ QR Code System (Updated)
+
+Each **Room** will still have a QR code.
+
+QR link example:
+
+```
+https://system.com/room/view/{room_hash}
+```
+
+When scanned it should show:
+
+Room Number
+Porta Cabin Name
+Capacity
+Current Employees
+
+Employee Info:
+
+• Profile Picture
+• Employee Name
+• Employee ID
+• Company
+• Department
+
+---
+
+# 4️⃣ Employee Assignment (Updated)
+
+Employees will now be assigned like this:
+
+```
+Employee → Porta Cabin → Room
+```
+
+Example:
+
+Ahmed Khan
+Cabin B
+Room 3
+
+---
+
+# 5️⃣ Employee Transfer Feature
+
+System must allow:
+
+• Move employee between rooms
+• Move employee between cabins
+
+Example:
+
+```
+Cabin A Room 2 → Cabin B Room 1
+```
+
+System rules:
+
+• Remove from old room automatically
+• Check capacity of new room
+
+---
+
+# 6️⃣ Dashboard Update
+
+Dashboard should show:
+
+• Total Employees
+• Total Porta Cabins
+• Total Rooms
+• Occupied Rooms
+• Available Rooms
+
+Click behavior:
+
+| Dashboard Item  | Opens            |
+| --------------- | ---------------- |
+| Total Employees | Employee list    |
+| Total Cabins    | Porta Cabin list |
+| Total Rooms     | Room list        |
+
+---
+
+# 7️⃣ Export System Updates
+
+## Employee Export (Excel/PDF)
+
+Now include these columns:
+
+| Picture | Employee ID | Name | Company | Department | Porta Cabin | Room | Status |
+
+---
+
+### PDF Export Requirement
+
+Employee **profile picture must appear** in PDF.
+
+Example table:
+
+| Photo | ID | Name | Cabin | Room | Department |
+| ----- | -- | ---- | ----- | ---- | ---------- |
+
+Image size recommendation:
+
+```
+40px × 40px
+```
+
+Laravel Implementation suggestion:
+
+Use:
+
+* Laravel DomPDF
+
+In blade template:
+
+```html
+<img src="{{ public_path($employee->profile_image) }}" width="40">
+```
+
+---
+
+# 8️⃣ Room Export (Updated)
+
+Room export must show:
+
+```
+Cabin A
+   Room 1
+      Employees...
+   Room 2
+      Employees...
+```
+
+Example PDF:
+
+---
+
+Porta Cabin: Cabin A
+
+Room 1 (Capacity: 4)
+
+• Ahmed – ID 1001 – Electrical
+• Khalid – ID 1002 – Maintenance
+
+Room 2 (Capacity: 4)
+
+• No Employees
+
+---
+
+---
+
+# 9️⃣ QR Export (Updated)
+
+When exporting QR sheet:
+
+```
+CABIN A – ROOM 1
+[ QR CODE ]
+
+CABIN A – ROOM 2
+[ QR CODE ]
+
+CABIN B – ROOM 1
+[ QR CODE ]
+```
+
+---
+
+# 🔟 Database Changes
+
+## New Table
+
+### porta_cabins
+
+| Field      |
+| ---------- |
+| id         |
+| name       |
+| location   |
+| status     |
+| created_at |
+
+---
+
+## Update Rooms Table
+
+Add:
+
+```
+porta_cabin_id
+```
+
+Structure:
+
+| Field          |
+| -------------- |
+| id             |
+| porta_cabin_id |
+| room_number    |
+| capacity       |
+| status         |
+| qr_hash        |
+
+---
+
+## Employees Table
+
+No change except room relationship.
+
+Employee → room_id
+
+Room → porta_cabin_id
+
+---
+
+# 1️⃣1️⃣ Menu Structure (Updated)
+
+Dashboard
+
+Employees
+
+Porta Cabins
+
+Rooms
+
+Reports / Export
+
+User Management
+
+---
+
+# 1️⃣2️⃣ Final System Structure
+
+Your system now becomes:
+
+```
+Porta Cabins
+   ↓
+Rooms
+   ↓
+Employees
+```
+
+Plus:
+
+✔ QR room identification
+✔ Employee transfers
+✔ Export with employee pictures
+✔ Excel + PDF reports
+✔ Dashboard analytics
+
+---
+
+# ⭐ Recommended Extra Feature (Very Useful)
+
+Add **Cabin Map View**
+
+Example:
+
+```
+Cabin A
+[Room 1: 3/4]
+[Room 2: 4/4]
+[Room 3: 1/4]
+```
+
+This allows HR to quickly see which rooms are full.
+
+---
+
+If you want, I can also create:
+
+✅ **Updated SRS document (Version 2)**
+✅ **Database ER Diagram** for this new structure
+✅ **Laravel migration code** for cabins & rooms
+✅ **UI layout for cabin → room navigation**
+✅ **QR label design for printing**
+
+Just tell me 👍

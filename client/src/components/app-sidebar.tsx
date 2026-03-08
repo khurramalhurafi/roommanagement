@@ -5,6 +5,7 @@ import {
   DoorOpen,
   UserCog,
   LogOut,
+  Home,
 } from "lucide-react";
 import {
   Sidebar,
@@ -25,6 +26,7 @@ import type { User } from "@shared/schema";
 const navItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Employees", url: "/employees", icon: Users },
+  { title: "Porta Cabins", url: "/porta-cabins", icon: Home },
   { title: "Rooms", url: "/rooms", icon: DoorOpen },
   { title: "Users", url: "/users", icon: UserCog, adminOnly: true },
 ];
@@ -63,7 +65,7 @@ export function AppSidebar({ user }: { user: User }) {
                   return (
                     <SidebarMenuItem key={item.title}>
                       <SidebarMenuButton asChild data-active={isActive}>
-                        <Link href={item.url} data-testid={`nav-${item.title.toLowerCase()}`}>
+                        <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(" ", "-")}`}>
                           <item.icon className="h-4 w-4" />
                           <span>{item.title}</span>
                         </Link>

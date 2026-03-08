@@ -9,6 +9,7 @@ import NotFound from "@/pages/not-found";
 import LoginPage from "@/pages/login";
 import DashboardPage from "@/pages/dashboard";
 import EmployeesPage from "@/pages/employees";
+import PortaCabinsPage from "@/pages/porta-cabins";
 import RoomsPage from "@/pages/rooms";
 import UsersManagementPage from "@/pages/users-management";
 import PublicRoomPage from "@/pages/public-room";
@@ -21,6 +22,7 @@ function AuthenticatedRouter({ user }: { user: User }) {
     <Switch>
       <Route path="/" component={DashboardPage} />
       <Route path="/employees" component={EmployeesPage} />
+      <Route path="/porta-cabins" component={PortaCabinsPage} />
       <Route path="/rooms" component={RoomsPage} />
       {user.role === "admin" && <Route path="/users" component={UsersManagementPage} />}
       <Route component={NotFound} />

@@ -1,5 +1,4 @@
-import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, timestamp, serial } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, timestamp, serial } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -13,11 +12,20 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const portaCabins = pgTable("porta_cabins", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  location: text("location"),
+  status: text("status").notNull().default("active"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const rooms = pgTable("rooms", {
   id: serial("id").primaryKey(),
   roomNumber: text("room_number").notNull().unique(),
-  building: text("building").notNull(),
-  floor: text("floor").notNull(),
+  portaCabinId: integer("porta_cabin_id").references(() => portaCabins.id),
+  building: text("building"),
+  floor: text("floor"),
   capacity: integer("capacity").notNull().default(4),
   status: text("status").notNull().default("available"),
   qrHash: text("qr_hash").notNull().unique(),
@@ -56,6 +64,7 @@ export const exportLogs = pgTable("export_logs", {
 });
 
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
+export const insertPortaCabinSchema = createInsertSchema(portaCabins).omit({ id: true, createdAt: true });
 export const insertRoomSchema = createInsertSchema(rooms).omit({ id: true, createdAt: true, qrHash: true });
 export const insertEmployeeSchema = createInsertSchema(employees).omit({ id: true, createdAt: true });
 export const insertTransferLogSchema = createInsertSchema(transferLogs).omit({ id: true, transferredAt: true });
@@ -63,6 +72,8 @@ export const insertExportLogSchema = createInsertSchema(exportLogs).omit({ id: t
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
+export type InsertPortaCabin = z.infer<typeof insertPortaCabinSchema>;
+export type PortaCabin = typeof portaCabins.$inferSelect;
 export type InsertRoom = z.infer<typeof insertRoomSchema>;
 export type Room = typeof rooms.$inferSelect;
 export type InsertEmployee = z.infer<typeof insertEmployeeSchema>;

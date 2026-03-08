@@ -7,7 +7,7 @@ import { useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -54,13 +54,14 @@ import {
   FileText,
   Printer,
   LayoutGrid,
+  Home,
 } from "lucide-react";
-import type { Room, Employee } from "@shared/schema";
+import type { Room, Employee, PortaCabin } from "@shared/schema";
 
 const roomFormSchema = z.object({
   roomNumber: z.string().min(1, "Room number is required"),
-  building: z.string().min(1, "Building is required"),
-  floor: z.string().min(1, "Floor is required"),
+  portaCabinId: z.number().nullable().optional(),
+  floor: z.string().optional(),
   capacity: z.coerce.number().min(1, "Capacity must be at least 1"),
   status: z.string().default("available"),
 });
@@ -78,9 +79,14 @@ export default function RoomsPage() {
 
   const searchParams = new URLSearchParams(window.location.search);
   const statusFilter = searchParams.get("status");
+  const cabinFilter = searchParams.get("cabinId");
 
   const { data: rooms = [], isLoading } = useQuery<Room[]>({
     queryKey: ["/api/rooms"],
+  });
+
+  const { data: cabins = [] } = useQuery<PortaCabin[]>({
+    queryKey: ["/api/porta-cabins"],
   });
 
   const { data: roomEmployees = [] } = useQuery<Employee[]>({
@@ -97,7 +103,7 @@ export default function RoomsPage() {
     resolver: zodResolver(roomFormSchema),
     defaultValues: {
       roomNumber: "",
-      building: "",
+      portaCabinId: null,
       floor: "",
       capacity: 4,
       status: "available",
@@ -158,8 +164,8 @@ export default function RoomsPage() {
     setEditingRoom(room);
     form.reset({
       roomNumber: room.roomNumber,
-      building: room.building,
-      floor: room.floor,
+      portaCabinId: room.portaCabinId ?? null,
+      floor: room.floor || "",
       capacity: room.capacity,
       status: room.status,
     });
@@ -170,7 +176,7 @@ export default function RoomsPage() {
     setEditingRoom(null);
     form.reset({
       roomNumber: "",
-      building: "",
+      portaCabinId: cabinFilter ? parseInt(cabinFilter) : null,
       floor: "",
       capacity: 4,
       status: "available",
@@ -192,23 +198,37 @@ export default function RoomsPage() {
     toast({ title: "Link copied to clipboard" });
   };
 
+  const getCabinName = (portaCabinId: number | null | undefined) => {
+    if (!portaCabinId) return null;
+    const cabin = cabins.find(c => c.id === portaCabinId);
+    return cabin?.name || null;
+  };
+
   let filteredRooms = rooms.filter(
     (r) =>
       r.roomNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      r.building.toLowerCase().includes(searchTerm.toLowerCase())
+      (r.portaCabinId ? getCabinName(r.portaCabinId) || "" : r.building || "").toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   if (statusFilter) {
     filteredRooms = filteredRooms.filter((r) => r.status === statusFilter);
   }
 
+  if (cabinFilter) {
+    filteredRooms = filteredRooms.filter((r) => r.portaCabinId === parseInt(cabinFilter));
+  }
+
+  const filteredCabin = cabinFilter ? cabins.find(c => c.id === parseInt(cabinFilter)) : null;
+
   return (
     <div className="p-6 space-y-6 overflow-y-auto h-full">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold" data-testid="text-page-title">Rooms</h1>
+          <h1 className="text-2xl font-bold" data-testid="text-page-title">
+            {filteredCabin ? `${filteredCabin.name} — Rooms` : "Rooms"}
+          </h1>
           <p className="text-muted-foreground">
-            Manage accommodation rooms and QR codes
+            {filteredCabin ? `Rooms in ${filteredCabin.name}` : "Manage accommodation rooms and QR codes"}
           </p>
         </div>
         <div className="flex gap-2">
@@ -222,14 +242,14 @@ export default function RoomsPage() {
             <DropdownMenuContent align="end">
               <DropdownMenuItem
                 data-testid="button-export-rooms-excel"
-                onClick={() => window.open("/api/export/rooms/excel", "_blank")}
+                onClick={() => window.open(`/api/export/rooms/excel${cabinFilter ? `?cabinId=${cabinFilter}` : ""}`, "_blank")}
               >
                 <FileSpreadsheet className="h-4 w-4 mr-2" />
                 Export to Excel
               </DropdownMenuItem>
               <DropdownMenuItem
                 data-testid="button-export-rooms-pdf"
-                onClick={() => window.open("/api/export/rooms/pdf", "_blank")}
+                onClick={() => window.open(`/api/export/rooms/pdf${cabinFilter ? `?cabinId=${cabinFilter}` : ""}`, "_blank")}
               >
                 <FileText className="h-4 w-4 mr-2" />
                 Export to PDF
@@ -237,14 +257,14 @@ export default function RoomsPage() {
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 data-testid="button-export-qr-single"
-                onClick={() => window.open("/api/export/rooms/qr-pdf?layout=single", "_blank")}
+                onClick={() => window.open(`/api/export/rooms/qr-pdf?layout=single${cabinFilter ? `&cabinId=${cabinFilter}` : ""}`, "_blank")}
               >
                 <Printer className="h-4 w-4 mr-2" />
                 QR Codes (1 per page)
               </DropdownMenuItem>
               <DropdownMenuItem
                 data-testid="button-export-qr-grid"
-                onClick={() => window.open("/api/export/rooms/qr-pdf?layout=grid", "_blank")}
+                onClick={() => window.open(`/api/export/rooms/qr-pdf?layout=grid${cabinFilter ? `&cabinId=${cabinFilter}` : ""}`, "_blank")}
               >
                 <LayoutGrid className="h-4 w-4 mr-2" />
                 QR Codes (4 per page)
@@ -295,73 +315,87 @@ export default function RoomsPage() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredRooms.map((room) => (
-            <Card key={room.id} className="hover-elevate" data-testid={`card-room-${room.id}`}>
-              <CardContent className="p-5">
-                <div className="flex items-start justify-between gap-2 mb-3">
-                  <div>
-                    <h3 className="font-semibold text-lg">{room.roomNumber}</h3>
-                    <p className="text-sm text-muted-foreground">
-                      {room.building} - Floor {room.floor}
-                    </p>
+          {filteredRooms.map((room) => {
+            const cabinName = getCabinName(room.portaCabinId);
+            return (
+              <Card key={room.id} className="hover-elevate" data-testid={`card-room-${room.id}`}>
+                <CardContent className="p-5">
+                  <div className="flex items-start justify-between gap-2 mb-3">
+                    <div>
+                      <h3 className="font-semibold text-lg">{room.roomNumber}</h3>
+                      <p className="text-sm text-muted-foreground flex items-center gap-1">
+                        {cabinName ? (
+                          <>
+                            <Home className="h-3.5 w-3.5" />
+                            {cabinName}{room.floor ? ` — Floor ${room.floor}` : ""}
+                          </>
+                        ) : room.building ? (
+                          `${room.building}${room.floor ? ` - Floor ${room.floor}` : ""}`
+                        ) : room.floor ? (
+                          `Floor ${room.floor}`
+                        ) : (
+                          "No cabin assigned"
+                        )}
+                      </p>
+                    </div>
+                    <Badge
+                      variant={room.status === "available" ? "default" : room.status === "occupied" ? "secondary" : "outline"}
+                    >
+                      {room.status}
+                    </Badge>
                   </div>
-                  <Badge
-                    variant={room.status === "available" ? "default" : room.status === "occupied" ? "secondary" : "outline"}
-                  >
-                    {room.status}
-                  </Badge>
-                </div>
 
-                <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
-                  <div className="flex items-center gap-1">
-                    <Users className="h-4 w-4" />
-                    <span>Capacity: {room.capacity}</span>
+                  <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
+                    <div className="flex items-center gap-1">
+                      <Users className="h-4 w-4" />
+                      <span>Capacity: {room.capacity}</span>
+                    </div>
                   </div>
-                </div>
 
-                <div className="flex items-center gap-1 flex-wrap">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setSelectedRoom(room)}
-                    data-testid={`button-view-room-${room.id}`}
-                  >
-                    <Users className="h-3.5 w-3.5 mr-1" />
-                    View
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => { setQrRoom(room); setShowQR(true); }}
-                    data-testid={`button-qr-room-${room.id}`}
-                  >
-                    <QrCode className="h-3.5 w-3.5 mr-1" />
-                    QR
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => openEdit(room)}
-                    data-testid={`button-edit-room-${room.id}`}
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => {
-                      if (confirm("Are you sure you want to delete this room?")) {
-                        deleteMutation.mutate(room.id);
-                      }
-                    }}
-                    data-testid={`button-delete-room-${room.id}`}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setSelectedRoom(room)}
+                      data-testid={`button-view-room-${room.id}`}
+                    >
+                      <Users className="h-3.5 w-3.5 mr-1" />
+                      View
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => { setQrRoom(room); setShowQR(true); }}
+                      data-testid={`button-qr-room-${room.id}`}
+                    >
+                      <QrCode className="h-3.5 w-3.5 mr-1" />
+                      QR
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => openEdit(room)}
+                      data-testid={`button-edit-room-${room.id}`}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => {
+                        if (confirm("Are you sure you want to delete this room?")) {
+                          deleteMutation.mutate(room.id);
+                        }
+                      }}
+                      data-testid={`button-delete-room-${room.id}`}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
 
@@ -387,26 +421,41 @@ export default function RoomsPage() {
                   </FormItem>
                 )}
               />
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="building"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Building</FormLabel>
+              <FormField
+                control={form.control}
+                name="portaCabinId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Porta Cabin</FormLabel>
+                    <Select
+                      onValueChange={(v) => field.onChange(v === "none" ? null : parseInt(v))}
+                      value={field.value?.toString() || "none"}
+                    >
                       <FormControl>
-                        <Input {...field} data-testid="input-building" />
+                        <SelectTrigger data-testid="select-porta-cabin">
+                          <SelectValue placeholder="Select a cabin" />
+                        </SelectTrigger>
                       </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                      <SelectContent>
+                        <SelectItem value="none">No Cabin</SelectItem>
+                        {cabins.map(cabin => (
+                          <SelectItem key={cabin.id} value={cabin.id.toString()}>
+                            {cabin.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="grid grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
                   name="floor"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Floor</FormLabel>
+                      <FormLabel>Floor (Optional)</FormLabel>
                       <FormControl>
                         <Input {...field} data-testid="input-floor" />
                       </FormControl>
@@ -414,20 +463,20 @@ export default function RoomsPage() {
                     </FormItem>
                   )}
                 />
+                <FormField
+                  control={form.control}
+                  name="capacity"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Capacity</FormLabel>
+                      <FormControl>
+                        <Input type="number" min={1} {...field} data-testid="input-capacity" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
-              <FormField
-                control={form.control}
-                name="capacity"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Capacity</FormLabel>
-                    <FormControl>
-                      <Input type="number" min={1} {...field} data-testid="input-capacity" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
               <FormField
                 control={form.control}
                 name="status"
@@ -475,7 +524,8 @@ export default function RoomsPage() {
         <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              Room {selectedRoom?.roomNumber} - {selectedRoom?.building}
+              Room {selectedRoom?.roomNumber}
+              {selectedRoom?.portaCabinId ? ` — ${getCabinName(selectedRoom.portaCabinId)}` : ""}
             </DialogTitle>
           </DialogHeader>
           {selectedRoom && (
@@ -483,7 +533,7 @@ export default function RoomsPage() {
               <div className="grid grid-cols-3 gap-3">
                 <div className="text-center p-3 rounded-md bg-muted/50">
                   <p className="text-sm text-muted-foreground">Floor</p>
-                  <p className="font-semibold">{selectedRoom.floor}</p>
+                  <p className="font-semibold">{selectedRoom.floor || "—"}</p>
                 </div>
                 <div className="text-center p-3 rounded-md bg-muted/50">
                   <p className="text-sm text-muted-foreground">Capacity</p>
@@ -536,7 +586,8 @@ export default function RoomsPage() {
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-center">
-              QR Code - Room {qrRoom?.roomNumber}
+              QR Code — Room {qrRoom?.roomNumber}
+              {qrRoom?.portaCabinId ? ` (${getCabinName(qrRoom.portaCabinId)})` : ""}
             </DialogTitle>
           </DialogHeader>
           {qrRoom && (
@@ -572,7 +623,7 @@ export default function RoomsPage() {
                   data-testid="button-save-qr"
                 >
                   <Download className="h-3.5 w-3.5 mr-1" />
-                  Save QR Code
+                  Save QR
                 </Button>
                 <Button
                   variant="outline"

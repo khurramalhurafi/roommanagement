@@ -2,12 +2,15 @@ import { eq, sql, desc } from "drizzle-orm";
 import { db } from "./db";
 import {
   users,
+  portaCabins,
   rooms,
   employees,
   transferLogs,
   exportLogs,
   type User,
   type InsertUser,
+  type PortaCabin,
+  type InsertPortaCabin,
   type Room,
   type InsertRoom,
   type Employee,
@@ -25,6 +28,13 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: number, user: Partial<InsertUser>): Promise<User | undefined>;
   deleteUser(id: number): Promise<void>;
+
+  getPortaCabin(id: number): Promise<PortaCabin | undefined>;
+  getAllPortaCabins(): Promise<PortaCabin[]>;
+  createPortaCabin(cabin: InsertPortaCabin): Promise<PortaCabin>;
+  updatePortaCabin(id: number, cabin: Partial<InsertPortaCabin>): Promise<PortaCabin | undefined>;
+  deletePortaCabin(id: number): Promise<void>;
+  getRoomsByPortaCabin(cabinId: number): Promise<Room[]>;
 
   getRoom(id: number): Promise<Room | undefined>;
   getRoomByHash(hash: string): Promise<Room | undefined>;
@@ -48,6 +58,7 @@ export interface IStorage {
 
   getDashboardStats(): Promise<{
     totalEmployees: number;
+    totalCabins: number;
     totalRooms: number;
     occupiedRooms: number;
     availableRooms: number;
@@ -85,6 +96,34 @@ export class DatabaseStorage implements IStorage {
     await db.delete(exportLogs).where(eq(exportLogs.userId, id));
     await db.delete(transferLogs).where(eq(transferLogs.transferredBy, id));
     await db.delete(users).where(eq(users.id, id));
+  }
+
+  async getPortaCabin(id: number): Promise<PortaCabin | undefined> {
+    const [cabin] = await db.select().from(portaCabins).where(eq(portaCabins.id, id));
+    return cabin;
+  }
+
+  async getAllPortaCabins(): Promise<PortaCabin[]> {
+    return db.select().from(portaCabins).orderBy(portaCabins.name);
+  }
+
+  async createPortaCabin(cabin: InsertPortaCabin): Promise<PortaCabin> {
+    const [created] = await db.insert(portaCabins).values(cabin).returning();
+    return created;
+  }
+
+  async updatePortaCabin(id: number, data: Partial<InsertPortaCabin>): Promise<PortaCabin | undefined> {
+    const [updated] = await db.update(portaCabins).set(data).where(eq(portaCabins.id, id)).returning();
+    return updated;
+  }
+
+  async deletePortaCabin(id: number): Promise<void> {
+    await db.update(rooms).set({ portaCabinId: null }).where(eq(rooms.portaCabinId, id));
+    await db.delete(portaCabins).where(eq(portaCabins.id, id));
+  }
+
+  async getRoomsByPortaCabin(cabinId: number): Promise<Room[]> {
+    return db.select().from(rooms).where(eq(rooms.portaCabinId, cabinId));
   }
 
   async getRoom(id: number): Promise<Room | undefined> {
@@ -170,6 +209,7 @@ export class DatabaseStorage implements IStorage {
 
   async getDashboardStats() {
     const allEmployees = await db.select({ count: sql<number>`count(*)::int` }).from(employees);
+    const allCabins = await db.select({ count: sql<number>`count(*)::int` }).from(portaCabins);
     const allRooms = await db.select({ count: sql<number>`count(*)::int` }).from(rooms);
     const occupied = await db
       .select({ count: sql<number>`count(*)::int` })
@@ -206,6 +246,7 @@ export class DatabaseStorage implements IStorage {
 
     return {
       totalEmployees: allEmployees[0]?.count ?? 0,
+      totalCabins: allCabins[0]?.count ?? 0,
       totalRooms,
       occupiedRooms,
       availableRooms: available[0]?.count ?? 0,

@@ -6,6 +6,16 @@ import { storage } from "./storage";
 
 async function createTablesIfNotExist() {
   await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS porta_cabins (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE,
+      location TEXT,
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+
+  await db.execute(sql`
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,
@@ -21,8 +31,9 @@ async function createTablesIfNotExist() {
     CREATE TABLE IF NOT EXISTS rooms (
       id SERIAL PRIMARY KEY,
       room_number TEXT NOT NULL UNIQUE,
-      building TEXT NOT NULL,
-      floor TEXT NOT NULL,
+      porta_cabin_id INTEGER REFERENCES porta_cabins(id),
+      building TEXT,
+      floor TEXT,
       capacity INTEGER NOT NULL DEFAULT 4,
       status TEXT NOT NULL DEFAULT 'available',
       qr_hash TEXT NOT NULL UNIQUE,
@@ -110,15 +121,27 @@ export async function seedDatabase() {
     status: "active",
   });
 
+  const cabinsData = [
+    { name: "Cabin A", location: "North Zone", status: "active" },
+    { name: "Cabin B", location: "South Zone", status: "active" },
+    { name: "Cabin C", location: "East Zone", status: "active" },
+  ];
+
+  const createdCabins = [];
+  for (const c of cabinsData) {
+    const cabin = await storage.createPortaCabin(c);
+    createdCabins.push(cabin);
+  }
+
   const roomsData = [
-    { roomNumber: "A-101", building: "Building A", floor: "1", capacity: 4, status: "occupied" },
-    { roomNumber: "A-102", building: "Building A", floor: "1", capacity: 4, status: "occupied" },
-    { roomNumber: "A-201", building: "Building A", floor: "2", capacity: 3, status: "available" },
-    { roomNumber: "B-101", building: "Building B", floor: "1", capacity: 4, status: "occupied" },
-    { roomNumber: "B-102", building: "Building B", floor: "1", capacity: 4, status: "available" },
-    { roomNumber: "B-201", building: "Building B", floor: "2", capacity: 3, status: "available" },
-    { roomNumber: "C-101", building: "Building C", floor: "1", capacity: 6, status: "maintenance" },
-    { roomNumber: "C-102", building: "Building C", floor: "1", capacity: 4, status: "available" },
+    { roomNumber: "A-101", portaCabinId: createdCabins[0].id, floor: "1", capacity: 4, status: "occupied" },
+    { roomNumber: "A-102", portaCabinId: createdCabins[0].id, floor: "1", capacity: 4, status: "occupied" },
+    { roomNumber: "A-201", portaCabinId: createdCabins[0].id, floor: "2", capacity: 3, status: "available" },
+    { roomNumber: "B-101", portaCabinId: createdCabins[1].id, floor: "1", capacity: 4, status: "occupied" },
+    { roomNumber: "B-102", portaCabinId: createdCabins[1].id, floor: "1", capacity: 4, status: "available" },
+    { roomNumber: "B-201", portaCabinId: createdCabins[1].id, floor: "2", capacity: 3, status: "available" },
+    { roomNumber: "C-101", portaCabinId: createdCabins[2].id, floor: "1", capacity: 6, status: "maintenance" },
+    { roomNumber: "C-102", portaCabinId: createdCabins[2].id, floor: "1", capacity: 4, status: "available" },
   ];
 
   const createdRooms = [];

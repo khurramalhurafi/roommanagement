@@ -9,11 +9,13 @@ import {
   DoorOpen,
   Layers,
   Users,
+  Home,
 } from "lucide-react";
-import type { Room, Employee } from "@shared/schema";
+import type { Room, Employee, PortaCabin } from "@shared/schema";
 
 interface PublicRoomData {
   room: Room;
+  portaCabin: PortaCabin | null;
   employees: Pick<Employee, "id" | "name" | "employeeIdNo" | "company" | "department" | "profileImage">[];
 }
 
@@ -58,7 +60,7 @@ export default function PublicRoomPage() {
     );
   }
 
-  const { room, employees } = data;
+  const { room, employees, portaCabin } = data;
 
   return (
     <div className="min-h-screen bg-background">
@@ -67,10 +69,18 @@ export default function PublicRoomPage() {
           <div className="inline-flex items-center justify-center h-14 w-14 rounded-xl bg-primary-foreground/10 mb-4">
             <Building2 className="h-7 w-7" />
           </div>
+          {portaCabin && (
+            <p className="text-primary-foreground/70 text-sm mb-1 flex items-center justify-center gap-1">
+              <Home className="h-4 w-4" />
+              {portaCabin.name}
+            </p>
+          )}
           <h1 className="text-2xl font-bold" data-testid="text-room-title">
             Room {room.roomNumber}
           </h1>
-          <p className="text-primary-foreground/80 mt-1">{room.building}</p>
+          {!portaCabin && room.building && (
+            <p className="text-primary-foreground/80 mt-1">{room.building}</p>
+          )}
         </div>
       </div>
 
@@ -83,7 +93,7 @@ export default function PublicRoomPage() {
                   <Layers className="h-4 w-4" />
                   <span className="text-xs font-medium">Floor</span>
                 </div>
-                <p className="font-semibold" data-testid="text-room-floor">{room.floor}</p>
+                <p className="font-semibold" data-testid="text-room-floor">{room.floor || "—"}</p>
               </div>
               <div>
                 <div className="flex items-center justify-center gap-1.5 text-muted-foreground mb-1">

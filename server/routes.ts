@@ -12,7 +12,7 @@ import pg from "pg";
 import ExcelJS from "exceljs";
 import PDFDocument from "pdfkit";
 import { z } from "zod";
-import { insertEmployeeSchema, insertRoomSchema, insertUserSchema } from "@shared/schema";
+import { insertEmployeeSchema, insertRoomSchema, insertUserSchema, insertPortaCabinSchema } from "@shared/schema";
 import { storage } from "./storage";
 
 const sessionPool = new pg.Pool({
@@ -159,6 +159,66 @@ export async function registerRoutes(
     }
   });
 
+  // Porta Cabin routes
+  app.get("/api/porta-cabins", requireAuth, async (req, res) => {
+    try {
+      const cabins = await storage.getAllPortaCabins();
+      res.json(cabins);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/porta-cabins", requireAuth, async (req, res) => {
+    try {
+      const parsed = insertPortaCabinSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: parsed.error.errors.map(e => e.message).join(", ") });
+      }
+      const cabin = await storage.createPortaCabin(parsed.data);
+      res.status(201).json(cabin);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.patch("/api/porta-cabins/:id", requireAuth, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id as string);
+      const cabin = await storage.updatePortaCabin(id, req.body);
+      if (!cabin) return res.status(404).json({ message: "Porta cabin not found" });
+      res.json(cabin);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/porta-cabins/:id", requireAuth, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id as string);
+      const cabinRooms = await storage.getRoomsByPortaCabin(id);
+      const activeRooms = cabinRooms.filter(r => r.status === "occupied");
+      if (activeRooms.length > 0) {
+        return res.status(400).json({ message: "Cannot delete cabin with occupied rooms" });
+      }
+      await storage.deletePortaCabin(id);
+      res.json({ message: "Deleted" });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/porta-cabins/:id/rooms", requireAuth, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id as string);
+      const rooms = await storage.getRoomsByPortaCabin(id);
+      res.json(rooms);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Employee routes
   app.get("/api/employees", requireAuth, async (req, res) => {
     try {
       const employees = await storage.getAllEmployees();
@@ -197,7 +257,7 @@ export async function registerRoutes(
 
   app.patch("/api/employees/:id", requireAuth, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(req.params.id as string);
       const employee = await storage.updateEmployee(id, req.body);
       if (!employee) return res.status(404).json({ message: "Employee not found" });
       res.json(employee);
@@ -208,7 +268,7 @@ export async function registerRoutes(
 
   app.post("/api/employees/:id/upload-photo", requireAuth, upload.single("photo"), async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(req.params.id as string);
       const employee = await storage.getEmployee(id);
       if (!employee) return res.status(404).json({ message: "Employee not found" });
 
@@ -233,7 +293,7 @@ export async function registerRoutes(
 
   app.delete("/api/employees/:id/photo", requireAuth, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(req.params.id as string);
       const employee = await storage.getEmployee(id);
       if (!employee) return res.status(404).json({ message: "Employee not found" });
 
@@ -253,7 +313,7 @@ export async function registerRoutes(
 
   app.delete("/api/employees/:id", requireAuth, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(req.params.id as string);
       const employee = await storage.getEmployee(id);
       if (!employee) return res.status(404).json({ message: "Employee not found" });
 
@@ -273,7 +333,7 @@ export async function registerRoutes(
 
   app.post("/api/employees/:id/transfer", requireAuth, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(req.params.id as string);
       const { roomId: newRoomId } = req.body;
 
       const employee = await storage.getEmployee(id);
@@ -314,6 +374,7 @@ export async function registerRoutes(
     }
   });
 
+  // Room routes
   app.get("/api/rooms", requireAuth, async (req, res) => {
     try {
       const rooms = await storage.getAllRooms();
@@ -339,7 +400,7 @@ export async function registerRoutes(
 
   app.patch("/api/rooms/:id", requireAuth, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(req.params.id as string);
       const room = await storage.updateRoom(id, req.body);
       if (!room) return res.status(404).json({ message: "Room not found" });
       res.json(room);
@@ -350,7 +411,7 @@ export async function registerRoutes(
 
   app.delete("/api/rooms/:id", requireAuth, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(req.params.id as string);
       const emps = await storage.getEmployeesByRoom(id);
       if (emps.length > 0) {
         return res.status(400).json({ message: "Cannot delete room with assigned employees" });
@@ -364,7 +425,7 @@ export async function registerRoutes(
 
   app.get("/api/rooms/:id/employees", requireAuth, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(req.params.id as string);
       const emps = await storage.getEmployeesByRoom(id);
       res.json(emps);
     } catch (error: any) {
@@ -374,7 +435,7 @@ export async function registerRoutes(
 
   app.get("/api/rooms/:id/qr", requireAuth, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(req.params.id as string);
       const room = await storage.getRoom(id);
       if (!room) return res.status(404).json({ message: "Room not found" });
 
@@ -396,12 +457,18 @@ export async function registerRoutes(
       const emps = await storage.getEmployeesByRoom(room.id);
       const safeEmployees = emps.map(({ iqama, mobile, ...rest }) => rest);
 
-      res.json({ room, employees: safeEmployees });
+      let portaCabin = null;
+      if (room.portaCabinId) {
+        portaCabin = await storage.getPortaCabin(room.portaCabinId);
+      }
+
+      res.json({ room, employees: safeEmployees, portaCabin });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
   });
 
+  // User management routes
   app.get("/api/users", requireAdmin, async (req, res) => {
     try {
       const users = await storage.getAllUsers();
@@ -433,7 +500,7 @@ export async function registerRoutes(
 
   app.patch("/api/users/:id", requireAdmin, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(req.params.id as string);
       const { password, ...data } = req.body;
       let updateData: any = data;
       if (password && password.length > 0) {
@@ -450,7 +517,7 @@ export async function registerRoutes(
 
   app.delete("/api/users/:id", requireAdmin, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(req.params.id as string);
       if (id === req.session.userId) {
         return res.status(400).json({ message: "Cannot delete your own account" });
       }
@@ -465,27 +532,30 @@ export async function registerRoutes(
     await storage.createExportLog({ userId, exportType, format });
   }
 
-  const getExportSummary = (allEmployees: any[], allRooms: any[]) => {
+  const getExportSummary = (allEmployees: any[], allRooms: any[], allCabins: any[]) => {
     const occupiedRoomIds = new Set(allEmployees.filter(e => e.roomId !== null).map(e => e.roomId));
     return {
       totalEmployees: allEmployees.length,
+      totalCabins: allCabins.length,
       totalRooms: allRooms.length,
       occupiedRooms: occupiedRoomIds.size,
       availableRooms: allRooms.filter(r => r.status === "available").length,
     };
   };
 
-  const applyFilters = (employees: any[], rooms: any[], query: any) => {
+  const applyFilters = (employees: any[], rooms: any[], cabins: any[], query: any) => {
     const department = query.department as string | undefined;
     const company = query.company as string | undefined;
     const roomId = query.roomId as string | undefined;
-    const building = query.building as string | undefined;
+    const cabinId = query.cabinId as string | undefined;
     const status = query.status as string | undefined;
 
     let filteredEmployees = employees;
     let filteredRooms = rooms;
+    let filteredCabins = cabins;
 
-    if (building) filteredRooms = filteredRooms.filter((r: any) => r.building === building);
+    if (cabinId) filteredCabins = filteredCabins.filter((c: any) => c.id === parseInt(cabinId));
+    if (cabinId) filteredRooms = filteredRooms.filter((r: any) => r.portaCabinId === parseInt(cabinId));
     if (roomId) filteredRooms = filteredRooms.filter((r: any) => r.id === parseInt(roomId));
     if (status) filteredRooms = filteredRooms.filter((r: any) => r.status === status);
 
@@ -493,23 +563,25 @@ export async function registerRoutes(
     if (company) filteredEmployees = filteredEmployees.filter((e: any) => e.company === company);
 
     const filteredRoomIds = new Set(filteredRooms.map((r: any) => r.id));
-    if (building || roomId || status) {
+    if (cabinId || roomId || status) {
       filteredEmployees = filteredEmployees.filter((e: any) => e.roomId !== null && filteredRoomIds.has(e.roomId));
     }
 
-    return { filteredEmployees, filteredRooms };
+    return { filteredEmployees, filteredRooms, filteredCabins };
   };
 
   app.get("/api/export/employees/excel", requireAuth, async (req, res) => {
     try {
       const allEmployees = await storage.getAllEmployees();
       const allRooms = await storage.getAllRooms();
+      const allCabins = await storage.getAllPortaCabins();
       const user = await storage.getUser(req.session.userId!);
       const roomMap = new Map(allRooms.map(r => [r.id, r.roomNumber]));
-      const roomBuildingMap = new Map(allRooms.map(r => [r.id, r.building]));
+      const cabinMap = new Map(allCabins.map(c => [c.id, c.name]));
+      const roomCabinMap = new Map(allRooms.map(r => [r.id, r.portaCabinId ? cabinMap.get(r.portaCabinId) || "—" : (r.building || "—")]));
 
-      const { filteredEmployees, filteredRooms } = applyFilters(allEmployees, allRooms, req.query);
-      const summary = getExportSummary(filteredEmployees, filteredRooms);
+      const { filteredEmployees, filteredRooms } = applyFilters(allEmployees, allRooms, allCabins, req.query);
+      const summary = getExportSummary(filteredEmployees, filteredRooms, allCabins);
 
       const workbook = new ExcelJS.Workbook();
       workbook.creator = "EAM System";
@@ -519,7 +591,7 @@ export async function registerRoutes(
       const summaryStyle = { font: { bold: true, size: 11 } };
       const titleStyle = { font: { bold: true, size: 14, color: { argb: "FF2563EB" } } };
 
-      sheet.mergeCells("A1:I1");
+      sheet.mergeCells("A1:J1");
       sheet.getCell("A1").value = "Employee Accommodation Report";
       sheet.getCell("A1").font = titleStyle.font;
       sheet.getCell("A2").value = `Generated By: ${user?.name || "System"}`;
@@ -528,17 +600,15 @@ export async function registerRoutes(
       sheet.getCell("A3").font = summaryStyle.font;
       sheet.getCell("A4").value = `Total Employees: ${summary.totalEmployees}`;
       sheet.getCell("A4").font = summaryStyle.font;
-      sheet.getCell("A5").value = `Total Rooms: ${summary.totalRooms}`;
+      sheet.getCell("A5").value = `Total Cabins: ${summary.totalCabins} | Total Rooms: ${summary.totalRooms}`;
       sheet.getCell("A5").font = summaryStyle.font;
-      sheet.getCell("A6").value = `Occupied Rooms: ${summary.occupiedRooms}`;
+      sheet.getCell("A6").value = `Occupied Rooms: ${summary.occupiedRooms} | Available Rooms: ${summary.availableRooms}`;
       sheet.getCell("A6").font = summaryStyle.font;
-      sheet.getCell("A7").value = `Available Rooms: ${summary.availableRooms}`;
-      sheet.getCell("A7").font = summaryStyle.font;
       sheet.addRow([]);
 
-      const tableHeaderRow = 9;
-      const headers = ["Employee ID", "Name", "Iqama", "Mobile", "Department", "Company", "Room No", "Room Building", "Status"];
-      const widths = [15, 25, 15, 18, 20, 25, 12, 18, 12];
+      const tableHeaderRow = 8;
+      const headers = ["Employee ID", "Name", "Iqama", "Mobile", "Department", "Company", "Porta Cabin", "Room No", "Status"];
+      const widths = [15, 25, 15, 18, 20, 25, 18, 12, 12];
       headers.forEach((h, i) => {
         const cell = sheet.getCell(tableHeaderRow, i + 1);
         cell.value = h;
@@ -548,7 +618,7 @@ export async function registerRoutes(
         sheet.getColumn(i + 1).width = widths[i];
       });
 
-      filteredEmployees.forEach((emp, idx) => {
+      filteredEmployees.forEach((emp) => {
         sheet.addRow([
           emp.employeeIdNo,
           emp.name,
@@ -556,8 +626,8 @@ export async function registerRoutes(
           emp.mobile,
           emp.department,
           emp.company,
+          emp.roomId ? roomCabinMap.get(emp.roomId) || "—" : "—",
           emp.roomId ? roomMap.get(emp.roomId) || "N/A" : "Unassigned",
-          emp.roomId ? roomBuildingMap.get(emp.roomId) || "N/A" : "—",
           emp.status,
         ]);
       });
@@ -580,13 +650,16 @@ export async function registerRoutes(
     try {
       const allEmployees = await storage.getAllEmployees();
       const allRooms = await storage.getAllRooms();
+      const allCabins = await storage.getAllPortaCabins();
       const user = await storage.getUser(req.session.userId!);
       const roomMap = new Map(allRooms.map(r => [r.id, r.roomNumber]));
+      const cabinMap = new Map(allCabins.map(c => [c.id, c.name]));
+      const roomCabinMap = new Map(allRooms.map(r => [r.id, r.portaCabinId ? cabinMap.get(r.portaCabinId) || "—" : (r.building || "—")]));
 
-      const { filteredEmployees, filteredRooms } = applyFilters(allEmployees, allRooms, req.query);
-      const summary = getExportSummary(filteredEmployees, filteredRooms);
+      const { filteredEmployees, filteredRooms } = applyFilters(allEmployees, allRooms, allCabins, req.query);
+      const summary = getExportSummary(filteredEmployees, filteredRooms, allCabins);
 
-      const doc = new PDFDocument({ margin: 40, size: "A4", layout: "landscape" });
+      const doc = new PDFDocument({ margin: 40, size: "A4", layout: "landscape", bufferPages: true });
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `attachment; filename=employees_${Date.now()}.pdf`);
       doc.pipe(res);
@@ -602,14 +675,15 @@ export async function registerRoutes(
       const summaryY = doc.y + 8;
       doc.fillColor("black").font("Helvetica-Bold").fontSize(9);
       doc.text(`Total Employees: ${summary.totalEmployees}`, 60, summaryY);
-      doc.text(`Total Rooms: ${summary.totalRooms}`, 260, summaryY);
-      doc.text(`Occupied Rooms: ${summary.occupiedRooms}`, 460, summaryY);
+      doc.text(`Total Cabins: ${summary.totalCabins}`, 220, summaryY);
+      doc.text(`Total Rooms: ${summary.totalRooms}`, 380, summaryY);
+      doc.text(`Occupied Rooms: ${summary.occupiedRooms}`, 540, summaryY);
       doc.text(`Available Rooms: ${summary.availableRooms}`, 660, summaryY);
       doc.y = summaryY + 45;
       doc.moveDown(0.5);
 
-      const headers = ["ID", "Name", "Iqama", "Mobile", "Department", "Company", "Room", "Status"];
-      const colWidths = [55, 120, 85, 95, 90, 120, 70, 60];
+      const headers = ["Photo", "ID", "Name", "Department", "Company", "Cabin", "Room", "Status"];
+      const colWidths = [45, 60, 120, 90, 120, 100, 65, 60];
       const tableLeft = 40;
       const tableWidth = colWidths.reduce((a, b) => a + b, 0);
       let y = doc.y;
@@ -629,24 +703,46 @@ export async function registerRoutes(
       y = drawTableHeader(y);
 
       doc.font("Helvetica").fontSize(7);
-      filteredEmployees.forEach((emp, idx) => {
-        if (y > 530) {
+      for (let idx = 0; idx < filteredEmployees.length; idx++) {
+        const emp = filteredEmployees[idx];
+        const rowHeight = 36;
+        if (y > 510) {
           doc.addPage();
           y = 40;
           y = drawTableHeader(y);
           doc.font("Helvetica").fontSize(7);
         }
         const bgColor = idx % 2 === 0 ? "#F8FAFC" : "#FFFFFF";
-        doc.rect(tableLeft, y, tableWidth, 18).fill(bgColor);
+        doc.rect(tableLeft, y, tableWidth, rowHeight).fill(bgColor);
         doc.fillColor("black");
-        const row = [emp.employeeIdNo, emp.name, emp.iqama, emp.mobile, emp.department, emp.company, emp.roomId ? roomMap.get(emp.roomId) || "N/A" : "—", emp.status];
+
         let x = tableLeft;
+
+        if (emp.profileImage) {
+          const imgPath = path.join(uploadsDir, path.basename(emp.profileImage));
+          if (fs.existsSync(imgPath)) {
+            try {
+              doc.image(imgPath, x + 3, y + 3, { width: 30, height: 30 });
+            } catch (_) {}
+          }
+        }
+        x += colWidths[0];
+
+        const row = [
+          emp.employeeIdNo,
+          emp.name,
+          emp.department,
+          emp.company,
+          emp.roomId ? roomCabinMap.get(emp.roomId) || "—" : "—",
+          emp.roomId ? roomMap.get(emp.roomId) || "N/A" : "—",
+          emp.status,
+        ];
         row.forEach((cell, i) => {
-          doc.text(cell, x + 3, y + 5, { width: colWidths[i] - 6 });
-          x += colWidths[i];
+          doc.text(String(cell), x + 3, y + 14, { width: colWidths[i + 1] - 6 });
+          x += colWidths[i + 1];
         });
-        y += 18;
-      });
+        y += rowHeight;
+      }
 
       const pageRange = doc.bufferedPageRange();
       for (let i = pageRange.start; i < pageRange.start + pageRange.count; i++) {
@@ -667,10 +763,12 @@ export async function registerRoutes(
     try {
       const allRooms = await storage.getAllRooms();
       const allEmployees = await storage.getAllEmployees();
+      const allCabins = await storage.getAllPortaCabins();
       const user = await storage.getUser(req.session.userId!);
+      const cabinMap = new Map(allCabins.map(c => [c.id, c.name]));
 
-      const { filteredEmployees, filteredRooms } = applyFilters(allEmployees, allRooms, req.query);
-      const summary = getExportSummary(filteredEmployees, filteredRooms);
+      const { filteredEmployees, filteredRooms, filteredCabins } = applyFilters(allEmployees, allRooms, allCabins, req.query);
+      const summary = getExportSummary(filteredEmployees, filteredRooms, filteredCabins);
 
       const workbook = new ExcelJS.Workbook();
       workbook.creator = "EAM System";
@@ -680,65 +778,107 @@ export async function registerRoutes(
       const titleStyle = { font: { bold: true, size: 14, color: { argb: "FF2563EB" } } };
       const summaryBold = { font: { bold: true, size: 11 } };
 
-      sheet.mergeCells("A1:E1");
+      sheet.mergeCells("A1:F1");
       sheet.getCell("A1").value = "Room Accommodation Report";
       sheet.getCell("A1").font = titleStyle.font;
       sheet.getCell("A2").value = `Generated By: ${user?.name || "System"}`;
       sheet.getCell("A2").font = summaryBold.font;
       sheet.getCell("A3").value = `Generated On: ${new Date().toLocaleString("en-GB", { day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}`;
       sheet.getCell("A3").font = summaryBold.font;
-      sheet.getCell("A4").value = `Total Rooms: ${summary.totalRooms} | Total Employees: ${summary.totalEmployees}`;
+      sheet.getCell("A4").value = `Total Cabins: ${summary.totalCabins} | Total Rooms: ${summary.totalRooms} | Total Employees: ${summary.totalEmployees}`;
       sheet.getCell("A4").font = summaryBold.font;
       sheet.getCell("A5").value = `Occupied Rooms: ${summary.occupiedRooms} | Available Rooms: ${summary.availableRooms}`;
       sheet.getCell("A5").font = summaryBold.font;
 
       let currentRow = 7;
-
-      const colWidths = [15, 25, 20, 20, 12];
-      ["A", "B", "C", "D", "E"].forEach((col, i) => {
-        sheet.getColumn(col).width = colWidths[i];
+      ["A", "B", "C", "D", "E", "F"].forEach((col, i) => {
+        sheet.getColumn(col).width = [15, 25, 20, 20, 12, 15][i];
       });
 
-      filteredRooms.forEach(room => {
-        const roomEmployees = filteredEmployees.filter(e => e.roomId === room.id);
+      const cabinsToShow = filteredCabins.length > 0 ? filteredCabins : allCabins;
+      const roomsWithNoCabin = filteredRooms.filter(r => !r.portaCabinId);
 
-        const roomHeaderRow = sheet.getRow(currentRow);
-        sheet.mergeCells(`A${currentRow}:E${currentRow}`);
-        roomHeaderRow.getCell(1).value = `Room ${room.roomNumber}`;
-        roomHeaderRow.getCell(1).font = { bold: true, size: 12, color: { argb: "FF2563EB" } };
-        roomHeaderRow.getCell(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE8F0FE" } };
+      for (const cabin of cabinsToShow) {
+        const cabinRooms = filteredRooms.filter(r => r.portaCabinId === cabin.id);
+        if (cabinRooms.length === 0) continue;
+
+        sheet.mergeCells(`A${currentRow}:F${currentRow}`);
+        const cabinRow = sheet.getRow(currentRow);
+        cabinRow.getCell(1).value = `Porta Cabin: ${cabin.name}${cabin.location ? ` (${cabin.location})` : ""}`;
+        cabinRow.getCell(1).font = { bold: true, size: 13, color: { argb: "FFFFFFFF" } };
+        cabinRow.getCell(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E3A5F" } };
         currentRow++;
 
-        sheet.getCell(`A${currentRow}`).value = `Building: ${room.building}`;
-        sheet.getCell(`B${currentRow}`).value = `Floor: ${room.floor}`;
-        sheet.getCell(`C${currentRow}`).value = `Capacity: ${room.capacity}`;
-        sheet.getCell(`D${currentRow}`).value = `Occupied: ${roomEmployees.length}`;
-        const infoRow = sheet.getRow(currentRow);
-        infoRow.font = { size: 10 };
-        currentRow++;
+        for (const room of cabinRooms) {
+          const roomEmployees = filteredEmployees.filter(e => e.roomId === room.id);
 
-        if (roomEmployees.length > 0) {
-          const empHeaders = ["Employee ID", "Name", "Department", "Company", "Status"];
-          empHeaders.forEach((h, i) => {
-            const cell = sheet.getCell(currentRow, i + 1);
-            cell.value = h;
-            cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 9 };
-            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF475569" } };
-          });
+          sheet.mergeCells(`A${currentRow}:F${currentRow}`);
+          const roomHeaderRow = sheet.getRow(currentRow);
+          roomHeaderRow.getCell(1).value = `Room ${room.roomNumber}${room.floor ? ` (Floor ${room.floor})` : ""}`;
+          roomHeaderRow.getCell(1).font = { bold: true, size: 11, color: { argb: "FF2563EB" } };
+          roomHeaderRow.getCell(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE8F0FE" } };
           currentRow++;
 
-          roomEmployees.forEach(emp => {
-            sheet.getRow(currentRow).values = [emp.employeeIdNo, emp.name, emp.department, emp.company, emp.status];
+          sheet.getCell(`A${currentRow}`).value = `Capacity: ${room.capacity}`;
+          sheet.getCell(`B${currentRow}`).value = `Occupied: ${roomEmployees.length}`;
+          sheet.getCell(`C${currentRow}`).value = `Status: ${room.status}`;
+          sheet.getRow(currentRow).font = { size: 10 };
+          currentRow++;
+
+          if (roomEmployees.length > 0) {
+            const empHeaders = ["Employee ID", "Name", "Department", "Company", "Status"];
+            empHeaders.forEach((h, i) => {
+              const cell = sheet.getCell(currentRow, i + 1);
+              cell.value = h;
+              cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 9 };
+              cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF475569" } };
+            });
             currentRow++;
-          });
-        } else {
-          sheet.getCell(`A${currentRow}`).value = "No employees assigned to this room.";
-          sheet.getCell(`A${currentRow}`).font = { italic: true, color: { argb: "FF999999" } };
+
+            roomEmployees.forEach(emp => {
+              sheet.getRow(currentRow).values = [emp.employeeIdNo, emp.name, emp.department, emp.company, emp.status];
+              currentRow++;
+            });
+          } else {
+            sheet.getCell(`A${currentRow}`).value = "No employees assigned to this room.";
+            sheet.getCell(`A${currentRow}`).font = { italic: true, color: { argb: "FF999999" } };
+            currentRow++;
+          }
+
           currentRow++;
         }
-
         currentRow++;
-      });
+      }
+
+      if (roomsWithNoCabin.length > 0) {
+        sheet.mergeCells(`A${currentRow}:F${currentRow}`);
+        const otherRow = sheet.getRow(currentRow);
+        otherRow.getCell(1).value = "Unassigned Rooms";
+        otherRow.getCell(1).font = { bold: true, size: 13, color: { argb: "FFFFFFFF" } };
+        otherRow.getCell(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF475569" } };
+        currentRow++;
+
+        for (const room of roomsWithNoCabin) {
+          const roomEmployees = filteredEmployees.filter(e => e.roomId === room.id);
+          sheet.mergeCells(`A${currentRow}:F${currentRow}`);
+          sheet.getRow(currentRow).getCell(1).value = `Room ${room.roomNumber}`;
+          sheet.getRow(currentRow).getCell(1).font = { bold: true, size: 11, color: { argb: "FF2563EB" } };
+          sheet.getRow(currentRow).getCell(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE8F0FE" } };
+          currentRow++;
+
+          if (roomEmployees.length > 0) {
+            roomEmployees.forEach(emp => {
+              sheet.getRow(currentRow).values = [emp.employeeIdNo, emp.name, emp.department, emp.company, emp.status];
+              currentRow++;
+            });
+          } else {
+            sheet.getCell(`A${currentRow}`).value = "No employees assigned.";
+            sheet.getCell(`A${currentRow}`).font = { italic: true, color: { argb: "FF999999" } };
+            currentRow++;
+          }
+          currentRow++;
+        }
+      }
 
       await logExport(req.session.userId!, "room", "excel");
 
@@ -755,12 +895,14 @@ export async function registerRoutes(
     try {
       const allRooms = await storage.getAllRooms();
       const allEmployees = await storage.getAllEmployees();
+      const allCabins = await storage.getAllPortaCabins();
       const user = await storage.getUser(req.session.userId!);
+      const cabinMap = new Map(allCabins.map(c => [c.id, c.name]));
 
-      const { filteredEmployees, filteredRooms } = applyFilters(allEmployees, allRooms, req.query);
-      const summary = getExportSummary(filteredEmployees, filteredRooms);
+      const { filteredEmployees, filteredRooms, filteredCabins } = applyFilters(allEmployees, allRooms, allCabins, req.query);
+      const summary = getExportSummary(filteredEmployees, filteredRooms, filteredCabins);
 
-      const doc = new PDFDocument({ margin: 40, size: "A4" });
+      const doc = new PDFDocument({ margin: 40, size: "A4", bufferPages: true });
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `attachment; filename=rooms_${Date.now()}.pdf`);
       doc.pipe(res);
@@ -772,56 +914,91 @@ export async function registerRoutes(
       doc.text(`Generated On: ${new Date().toLocaleString("en-GB", { day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}`, { align: "center" });
       doc.moveDown(0.5);
 
-      doc.rect(40, doc.y, 515, 50).fill("#F1F5F9");
+      doc.rect(40, doc.y, 515, 55).fill("#F1F5F9");
       const sy = doc.y + 8;
       doc.fillColor("black").font("Helvetica-Bold").fontSize(9);
-      doc.text(`Total Rooms: ${summary.totalRooms}`, 60, sy);
+      doc.text(`Total Cabins: ${summary.totalCabins}`, 60, sy);
+      doc.text(`Total Rooms: ${summary.totalRooms}`, 60, sy + 16);
       doc.text(`Total Employees: ${summary.totalEmployees}`, 200, sy);
-      doc.text(`Occupied Rooms: ${summary.occupiedRooms}`, 60, sy + 18);
-      doc.text(`Available Rooms: ${summary.availableRooms}`, 200, sy + 18);
-      doc.y = sy + 50;
+      doc.text(`Occupied Rooms: ${summary.occupiedRooms}`, 200, sy + 16);
+      doc.text(`Available Rooms: ${summary.availableRooms}`, 350, sy);
+      doc.y = sy + 55;
       doc.moveDown(0.5);
 
-      filteredRooms.forEach((room, rIdx) => {
-        const roomEmployees = filteredEmployees.filter(e => e.roomId === room.id);
-        const neededHeight = 80 + (roomEmployees.length > 0 ? 20 + roomEmployees.length * 16 : 20);
+      const cabinsToShow = filteredCabins.length > 0 ? filteredCabins : allCabins;
+      const roomsWithNoCabin = filteredRooms.filter(r => !r.portaCabinId);
 
-        if (doc.y + neededHeight > 750 && rIdx > 0) {
-          doc.addPage();
-        }
+      const printRooms = (roomList: any[]) => {
+        roomList.forEach((room, rIdx) => {
+          const roomEmployees = filteredEmployees.filter(e => e.roomId === room.id);
+          const neededHeight = 80 + (roomEmployees.length > 0 ? 20 + roomEmployees.length * 16 : 20);
 
-        doc.rect(40, doc.y, 515, 24).fill("#2563EB");
-        doc.fillColor("white").font("Helvetica-Bold").fontSize(12).text(`ROOM: ${room.roomNumber}`, 50, doc.y + 5, { continued: false });
-        doc.y += 5;
+          if (doc.y + neededHeight > 720) {
+            doc.addPage();
+          }
 
-        doc.fillColor("black").font("Helvetica").fontSize(9);
-        doc.text(`Building: ${room.building}    |    Floor: ${room.floor}    |    Capacity: ${room.capacity}    |    Occupied: ${roomEmployees.length}`);
-        doc.moveDown(0.3);
-
-        if (roomEmployees.length > 0) {
-          doc.rect(40, doc.y, 515, 2).fill("#E2E8F0");
+          doc.rect(40, doc.y, 515, 24).fill("#2563EB");
+          doc.fillColor("white").font("Helvetica-Bold").fontSize(11).text(
+            `ROOM: ${room.roomNumber}${room.floor ? ` — Floor ${room.floor}` : ""}`,
+            50, doc.y + 5, { continued: false }
+          );
           doc.y += 5;
-          doc.font("Helvetica-Bold").fontSize(9).fillColor("black").text("Employee List:");
-          doc.moveDown(0.2);
 
-          roomEmployees.forEach(emp => {
-            doc.font("Helvetica").fontSize(8).fillColor("#334155");
-            doc.text(`  \u2022  ${emp.name} — ID: ${emp.employeeIdNo} — ${emp.department} — ${emp.company}`);
-          });
-        } else {
-          doc.font("Helvetica").fontSize(8).fillColor("#999999").text("  No employees assigned to this room.");
-        }
+          doc.fillColor("black").font("Helvetica").fontSize(9);
+          doc.text(`Cabin: ${room.portaCabinId ? cabinMap.get(room.portaCabinId) || "—" : (room.building || "—")}    |    Capacity: ${room.capacity}    |    Occupied: ${roomEmployees.length}    |    Status: ${room.status}`);
+          doc.moveDown(0.3);
 
-        doc.fillColor("black");
-        doc.moveDown(0.8);
-      });
+          if (roomEmployees.length > 0) {
+            doc.rect(40, doc.y, 515, 2).fill("#E2E8F0");
+            doc.y += 5;
+            doc.font("Helvetica-Bold").fontSize(9).fillColor("black").text("Employee List:");
+            doc.moveDown(0.2);
+
+            roomEmployees.forEach(emp => {
+              doc.font("Helvetica").fontSize(8).fillColor("#334155");
+              doc.text(`  \u2022  ${emp.name} — ID: ${emp.employeeIdNo} — ${emp.department} — ${emp.company}`);
+            });
+          } else {
+            doc.font("Helvetica").fontSize(8).fillColor("#999999").text("  No employees assigned to this room.");
+          }
+
+          doc.fillColor("black");
+          doc.moveDown(0.8);
+        });
+      };
+
+      for (const cabin of cabinsToShow) {
+        const cabinRooms = filteredRooms.filter(r => r.portaCabinId === cabin.id);
+        if (cabinRooms.length === 0) continue;
+
+        if (doc.y > 650) doc.addPage();
+
+        doc.rect(40, doc.y, 515, 26).fill("#1E3A5F");
+        doc.fillColor("white").font("Helvetica-Bold").fontSize(13).text(
+          `Porta Cabin: ${cabin.name}${cabin.location ? ` (${cabin.location})` : ""}`,
+          50, doc.y + 5
+        );
+        doc.y += 10;
+        doc.moveDown(0.5);
+
+        printRooms(cabinRooms);
+      }
+
+      if (roomsWithNoCabin.length > 0) {
+        if (doc.y > 650) doc.addPage();
+        doc.rect(40, doc.y, 515, 26).fill("#475569");
+        doc.fillColor("white").font("Helvetica-Bold").fontSize(13).text("Unassigned Rooms", 50, doc.y + 5);
+        doc.y += 10;
+        doc.moveDown(0.5);
+        printRooms(roomsWithNoCabin);
+      }
 
       const pageRange = doc.bufferedPageRange();
       for (let i = pageRange.start; i < pageRange.start + pageRange.count; i++) {
         doc.switchToPage(i);
         doc.fontSize(7).fillColor("#666666");
-        doc.text(`Page ${i + 1} of ${pageRange.count}`, 250, 780, { align: "center" });
-        doc.text("Employee Accommodation Management System", 40, 780);
+        doc.text(`Page ${i + 1} of ${pageRange.count}`, 250, 790, { align: "center" });
+        doc.text("Employee Accommodation Management System", 40, 790);
       }
 
       await logExport(req.session.userId!, "room", "pdf");
@@ -835,11 +1012,13 @@ export async function registerRoutes(
     try {
       const allRooms = await storage.getAllRooms();
       const allEmployees = await storage.getAllEmployees();
+      const allCabins = await storage.getAllPortaCabins();
       const layout = (req.query.layout as string) || "single";
+      const cabinMap = new Map(allCabins.map(c => [c.id, c.name]));
 
-      const { filteredRooms } = applyFilters(allEmployees, allRooms, req.query);
+      const { filteredRooms } = applyFilters(allEmployees, allRooms, allCabins, req.query);
 
-      const doc = new PDFDocument({ margin: 40, size: "A4" });
+      const doc = new PDFDocument({ margin: 40, size: "A4", bufferPages: true });
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `attachment; filename=room_qr_codes_${Date.now()}.pdf`);
       doc.pipe(res);
@@ -863,26 +1042,36 @@ export async function registerRoutes(
 
           const baseY = i < perPage ? startY : 60;
           const pos = { x: positions[posIdx].x, y: baseY + positions[posIdx].y };
+          const cabinName = room.portaCabinId ? cabinMap.get(room.portaCabinId) || "" : (room.building || "");
           const qrProtocol = (req.headers["x-forwarded-proto"] as string) || req.protocol || "http";
           const baseUrl = `${qrProtocol === "https" || process.env.NODE_ENV === "production" ? "https" : qrProtocol}://${req.get("host")}`;
           const qrUrl = `${baseUrl}/room/${room.qrHash}`;
           const qrDataUrl = await QRCode.toDataURL(qrUrl, { width: qrSize, margin: 1 });
           const qrBuffer = Buffer.from(qrDataUrl.split(",")[1], "base64");
 
-          doc.font("Helvetica-Bold").fontSize(14).fillColor("black").text(`ROOM: ${room.roomNumber}`, pos.x, pos.y, { width: qrSize, align: "center" });
-          doc.font("Helvetica").fontSize(10).text(`${room.building} - Floor ${room.floor}`, pos.x, pos.y + 20, { width: qrSize, align: "center" });
-          doc.image(qrBuffer, pos.x + 25, pos.y + 40, { width: qrSize - 50 });
+          if (cabinName) {
+            doc.font("Helvetica").fontSize(10).fillColor("#475569").text(cabinName, pos.x, pos.y, { width: qrSize, align: "center" });
+          }
+          doc.font("Helvetica-Bold").fontSize(14).fillColor("black").text(`ROOM: ${room.roomNumber}`, pos.x, pos.y + (cabinName ? 14 : 0), { width: qrSize, align: "center" });
+          doc.image(qrBuffer, pos.x + 25, pos.y + (cabinName ? 36 : 20), { width: qrSize - 50 });
         }
       } else {
         for (let i = 0; i < filteredRooms.length; i++) {
           const room = filteredRooms[i];
           if (i > 0) doc.addPage();
 
-          if (i > 0) doc.moveDown(3);
+          const cabinName = room.portaCabinId ? cabinMap.get(room.portaCabinId) || "" : (room.building || "");
+
+          if (cabinName) {
+            doc.font("Helvetica").fontSize(18).fillColor("#475569").text(cabinName, { align: "center" });
+            doc.moveDown(0.3);
+          }
           doc.font("Helvetica-Bold").fontSize(28).fillColor("black").text(`ROOM: ${room.roomNumber}`, { align: "center" });
           doc.moveDown(0.5);
-          doc.font("Helvetica").fontSize(16).text(`${room.building} - Floor ${room.floor}`, { align: "center" });
-          doc.moveDown(0.5);
+          if (room.floor) {
+            doc.font("Helvetica").fontSize(14).text(`Floor ${room.floor}`, { align: "center" });
+            doc.moveDown(0.3);
+          }
           doc.fontSize(12).text(`Capacity: ${room.capacity}`, { align: "center" });
           doc.moveDown(1);
 
@@ -902,8 +1091,8 @@ export async function registerRoutes(
       for (let i = pageRange.start; i < pageRange.start + pageRange.count; i++) {
         doc.switchToPage(i);
         doc.fontSize(7).fillColor("#666666");
-        doc.text(`Page ${i + 1} of ${pageRange.count}`, 250, 780, { align: "center" });
-        doc.text("Employee Accommodation Management System", 40, 780);
+        doc.text(`Page ${i + 1} of ${pageRange.count}`, 250, 790, { align: "center" });
+        doc.text("Employee Accommodation Management System", 40, 790);
       }
 
       await logExport(req.session.userId!, "qr", "pdf");

@@ -60,7 +60,7 @@ import {
   FileSpreadsheet,
   FileText,
 } from "lucide-react";
-import type { Employee, Room } from "@shared/schema";
+import type { Employee, Room, PortaCabin } from "@shared/schema";
 
 const employeeFormSchema = z.object({
   employeeIdNo: z.string().min(1, "Employee ID is required"),
@@ -94,6 +94,10 @@ export default function EmployeesPage() {
 
   const { data: rooms = [] } = useQuery<Room[]>({
     queryKey: ["/api/rooms"],
+  });
+
+  const { data: cabins = [] } = useQuery<PortaCabin[]>({
+    queryKey: ["/api/porta-cabins"],
   });
 
   const form = useForm<EmployeeFormData>({
@@ -201,12 +205,8 @@ export default function EmployeesPage() {
       }
       const updated = await res.json();
       queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
-      if (detailEmployee?.id === employeeId) {
-        setDetailEmployee(updated);
-      }
-      if (editingEmployee?.id === employeeId) {
-        setEditingEmployee(updated);
-      }
+      if (detailEmployee?.id === employeeId) setDetailEmployee(updated);
+      if (editingEmployee?.id === employeeId) setEditingEmployee(updated);
       toast({ title: "Profile picture uploaded successfully" });
     } catch (error: any) {
       toast({ title: "Upload failed", description: error.message, variant: "destructive" });
@@ -220,12 +220,8 @@ export default function EmployeesPage() {
       const res = await apiRequest("DELETE", `/api/employees/${employeeId}/photo`);
       const updated = await res.json();
       queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
-      if (detailEmployee?.id === employeeId) {
-        setDetailEmployee(updated);
-      }
-      if (editingEmployee?.id === employeeId) {
-        setEditingEmployee(updated);
-      }
+      if (detailEmployee?.id === employeeId) setDetailEmployee(updated);
+      if (editingEmployee?.id === employeeId) setEditingEmployee(updated);
       toast({ title: "Profile picture removed" });
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -295,10 +291,24 @@ export default function EmployeesPage() {
       e.company.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const getCabinName = (portaCabinId: number | null | undefined) => {
+    if (!portaCabinId) return null;
+    return cabins.find(c => c.id === portaCabinId)?.name || null;
+  };
+
   const getRoomLabel = (roomId: number | null) => {
     if (!roomId) return "Unassigned";
     const room = rooms.find((r) => r.id === roomId);
-    return room ? `${room.roomNumber} - ${room.building}` : "Unknown";
+    if (!room) return "Unknown";
+    const cabinName = getCabinName(room.portaCabinId);
+    return cabinName ? `${cabinName} — ${room.roomNumber}` : room.building ? `${room.building} — ${room.roomNumber}` : room.roomNumber;
+  };
+
+  const getRoomSelectLabel = (room: Room) => {
+    const cabinName = getCabinName(room.portaCabinId);
+    const prefix = cabinName || room.building || "";
+    const floor = room.floor ? ` (Floor ${room.floor})` : "";
+    return prefix ? `${prefix} — ${room.roomNumber}${floor}` : `${room.roomNumber}${floor}`;
   };
 
   const availableRooms = rooms.filter((r) => r.status === "available" || r.status === "occupied");
@@ -311,9 +321,7 @@ export default function EmployeesPage() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold" data-testid="text-page-title">Employees</h1>
-          <p className="text-muted-foreground">
-            Manage employee records and room assignments
-          </p>
+          <p className="text-muted-foreground">Manage employee records and room assignments</p>
         </div>
         <div className="flex gap-2">
           <DropdownMenu>
@@ -384,7 +392,7 @@ export default function EmployeesPage() {
                   <TableHead>ID No</TableHead>
                   <TableHead className="hidden md:table-cell">Department</TableHead>
                   <TableHead className="hidden md:table-cell">Company</TableHead>
-                  <TableHead className="hidden lg:table-cell">Room</TableHead>
+                  <TableHead className="hidden lg:table-cell">Cabin / Room</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -550,8 +558,8 @@ export default function EmployeesPage() {
                   <p className="text-xs text-muted-foreground">Mobile</p>
                   <p className="text-sm font-medium">{detailEmployee.mobile}</p>
                 </div>
-                <div className="p-3 rounded-md bg-muted/50">
-                  <p className="text-xs text-muted-foreground">Room</p>
+                <div className="p-3 rounded-md bg-muted/50 col-span-2">
+                  <p className="text-xs text-muted-foreground">Cabin / Room</p>
                   <p className="text-sm font-medium">{getRoomLabel(detailEmployee.roomId)}</p>
                 </div>
                 <div className="p-3 rounded-md bg-muted/50">
@@ -566,10 +574,7 @@ export default function EmployeesPage() {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => {
-                    setShowDetails(false);
-                    openEdit(detailEmployee);
-                  }}
+                  onClick={() => { setShowDetails(false); openEdit(detailEmployee); }}
                   data-testid="button-detail-edit"
                 >
                   <Pencil className="h-3.5 w-3.5 mr-1" />
@@ -578,10 +583,7 @@ export default function EmployeesPage() {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => {
-                    setShowDetails(false);
-                    openTransfer(detailEmployee);
-                  }}
+                  onClick={() => { setShowDetails(false); openTransfer(detailEmployee); }}
                   data-testid="button-detail-transfer"
                 >
                   <ArrowRightLeft className="h-3.5 w-3.5 mr-1" />
@@ -621,9 +623,7 @@ export default function EmployeesPage() {
                     className="hidden"
                     onChange={(e) => {
                       const file = e.target.files?.[0];
-                      if (file && editingEmployee) {
-                        handlePhotoUpload(editingEmployee.id, file);
-                      }
+                      if (file && editingEmployee) handlePhotoUpload(editingEmployee.id, file);
                       e.target.value = "";
                     }}
                     data-testid="input-photo-upload"
@@ -765,11 +765,7 @@ export default function EmployeesPage() {
                 )}
               />
               <div className="flex justify-end gap-2 pt-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowForm(false)}
-                >
+                <Button type="button" variant="outline" onClick={() => setShowForm(false)}>
                   Cancel
                 </Button>
                 <Button
@@ -800,10 +796,7 @@ export default function EmployeesPage() {
                 Transfer <span className="font-medium text-foreground">{transferEmployee.name}</span> to a new room.
                 Currently: <Badge variant="outline">{getRoomLabel(transferEmployee.roomId)}</Badge>
               </p>
-              <form
-                onSubmit={transferForm.handleSubmit(onTransfer)}
-                className="space-y-4"
-              >
+              <form onSubmit={transferForm.handleSubmit(onTransfer)} className="space-y-4">
                 <div>
                   <label className="text-sm font-medium mb-2 block">New Room</label>
                   <Select
@@ -819,18 +812,14 @@ export default function EmployeesPage() {
                       <SelectItem value="unassigned">Unassigned</SelectItem>
                       {availableRooms.map((room) => (
                         <SelectItem key={room.id} value={room.id.toString()}>
-                          {room.roomNumber} - {room.building} (Floor {room.floor})
+                          {getRoomSelectLabel(room)}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setShowTransfer(false)}
-                  >
+                  <Button type="button" variant="outline" onClick={() => setShowTransfer(false)}>
                     Cancel
                   </Button>
                   <Button

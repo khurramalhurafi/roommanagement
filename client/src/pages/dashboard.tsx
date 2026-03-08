@@ -10,11 +10,13 @@ import {
   XCircle,
   ArrowRightLeft,
   TrendingUp,
+  Home,
 } from "lucide-react";
-import type { Employee, Room, TransferLog } from "@shared/schema";
+import type { TransferLog } from "@shared/schema";
 
 interface DashboardStats {
   totalEmployees: number;
+  totalCabins: number;
   totalRooms: number;
   occupiedRooms: number;
   availableRooms: number;
@@ -68,8 +70,8 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-bold">Dashboard</h1>
           <p className="text-muted-foreground">Overview of accommodation system</p>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map((i) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          {[1, 2, 3, 4, 5].map((i) => (
             <Card key={i}>
               <CardContent className="p-6">
                 <Skeleton className="h-4 w-24 mb-2" />
@@ -89,7 +91,7 @@ export default function DashboardPage() {
         <p className="text-muted-foreground">Overview of accommodation management system</p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard
           title="Total Employees"
           value={stats?.totalEmployees ?? 0}
@@ -97,6 +99,14 @@ export default function DashboardPage() {
           href="/employees"
           color="bg-primary/10 text-primary"
           testId="stat-total-employees"
+        />
+        <StatCard
+          title="Total Cabins"
+          value={stats?.totalCabins ?? 0}
+          icon={Home}
+          href="/porta-cabins"
+          color="bg-purple-100 text-purple-600 dark:bg-purple-950/30 dark:text-purple-400"
+          testId="stat-total-cabins"
         />
         <StatCard
           title="Total Rooms"
