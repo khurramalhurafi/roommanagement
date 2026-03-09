@@ -90,8 +90,8 @@ INSERT INTO porta_cabins (id, name, location, status) VALUES (12, 'Cabin L', 'Ca
 INSERT INTO porta_cabins (id, name, location, status) VALUES (13, 'Cabin M', 'Camp M Zone', 'active');
 
 -- Insert Users (2)
-INSERT INTO users (id, name, email, password, role, status) VALUES (1, 'System Administrator', 'admin@company.com', '$2b$10$3fpe9HEQ4YAOzv8bS2gXuuboAmlQOSJi8515Z1HqiBXhDDbGqeIVG', 'admin', 'active');
-INSERT INTO users (id, name, email, password, role, status) VALUES (2, 'Sarah Johnson', 'sarah.hr@company.com', '$2b$10$ABmn7R195ea.fxu2Bl4WAuHchrCA07pfe1tn93bJqzNphO.Zv.U56', 'hr', 'active');
+INSERT INTO users (id, name, email, password, role, status) VALUES (1, 'System Administrator', 'admin@company.com', '$2b$10$C8g8LdERw3HNcDTNwuwjWe1Z.hNxU2LrRaRpry2uF5u7/qjY85b3S', 'admin', 'active');
+INSERT INTO users (id, name, email, password, role, status) VALUES (2, 'Sarah Johnson', 'sarah.hr@company.com', '$2b$10$ulI0.64CZZRURsuYxoOzOOXuVTCrAHBlNXIe9LvQ5L9Jq.K7mnRn6', 'hr', 'active');
 
 -- Insert Rooms (47)
 INSERT INTO rooms (id, room_number, porta_cabin_id, building, floor, capacity, status, qr_hash) VALUES (1, 'F-5', 6, 'Barracks F-5', 'ROOM 5', 2, 'available', '1dcc17e5e2c1cf16776a0f41a6292652');
