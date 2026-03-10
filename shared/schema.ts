@@ -1,4 +1,4 @@
-import { pgTable, text, integer, timestamp, serial } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, timestamp, serial, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -22,7 +22,7 @@ export const portaCabins = pgTable("porta_cabins", {
 
 export const rooms = pgTable("rooms", {
   id: serial("id").primaryKey(),
-  roomNumber: text("room_number").notNull().unique(),
+  roomNumber: text("room_number").notNull(),
   portaCabinId: integer("porta_cabin_id").references(() => portaCabins.id),
   building: text("building"),
   floor: text("floor"),
@@ -30,7 +30,9 @@ export const rooms = pgTable("rooms", {
   status: text("status").notNull().default("available"),
   qrHash: text("qr_hash").notNull().unique(),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (t) => [
+  uniqueIndex("rooms_room_number_cabin_unique").on(t.roomNumber, t.portaCabinId),
+]);
 
 export const employees = pgTable("employees", {
   id: serial("id").primaryKey(),
